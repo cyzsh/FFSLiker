@@ -27,11 +27,7 @@ const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority', {
       ssl: true,
-      sslValidate: true,
-      tlsAllowInvalidCertificates: false,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 30000
+      tlsAllowInvalidCertificates: false
     });
     console.log('MongoDB Connected Successfully');
   } catch (err) {
