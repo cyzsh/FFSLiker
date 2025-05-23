@@ -672,14 +672,14 @@ createApp({
             token: response.data.accessToken,
             id: response.data.userId,
             name: userInfo.data.name || 'Facebook User',
-            cookies: response.data.cookies
+            cookies: response.data.cookies || ''
           };
           
           // Save to localStorage
           localStorage.setItem('fb_token', response.data.accessToken);
           localStorage.setItem('fb_userId', response.data.userId);
           localStorage.setItem('fb_userName', userInfo.data.name || 'Facebook User');
-          localStorage.setItem('fb_cookies', response.data.cookies);
+          localStorage.setItem('fb_cookies', response.data.cookies || '');
           
           // Navigate to dashboard
           currentPage.value = 'dashboard';
@@ -696,6 +696,15 @@ createApp({
         }
       } catch (error) {
         console.error('Login error:', error);
+        let errorMessage = 'Login failed. Please check your credentials.';
+            
+            if (error.response) {
+              // The request was made and the server responded with a status code
+              errorMessage = error.response.data?.error || error.response.data?.message || errorMessage;
+            } else if (error.request) {
+              // The request was made but no response was received
+              errorMessage = 'Network error - please check your internet connection';
+            }
         Swal.fire({
           title: 'Error',
           text: error.response?.data?.error || error.message || 'Login failed. Please check your credentials.',
