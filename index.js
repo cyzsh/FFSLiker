@@ -133,46 +133,48 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
-    // Generate Android-style device info
+    // Generate device info
     const device_id = uuidv4();
-    const family_device_id = uuidv4();
-    const secure_family_device_id = uuidv4();
-    const machine_id = [...Array(24)].map(() => Math.random().toString(36)[2]).join('');
-    const jazoest = Math.floor(22000 + Math.random() * 1000);
-    const timestamp = Math.floor(Date.now() / 1000);
+    const adid = generateRandomHex(16);
+    const jazoest = `2${Math.floor(1000 + Math.random() * 9000)}`;
+    const fb_api_req_friendly_name = 'authenticate';
 
     const headers = {
-      'Host': 'b-graph.facebook.com',
-      'X-Fb-Connection-Quality': 'EXCELLENT',
-      'Authorization': 'OAuth 350685531728|62f8ce9f74b12f84c123cc23437a4a32',
-      'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 7.1.2; RMX3740 Build/QP1A.190711.020) [FBAN/FB4A;FBAV/417.0.0.33.65;FBPN/com.facebook.katana;FBLC/en_US;FBBV/480086274;FBCR/Corporation Tbk;FBMF/realme;FBBD/realme;FBDV/RMX3740;FBSV/7.1.2;FBCA/x86:armeabi-v7a;FBDM/{density=1.0,width=540,height=960};FB_FW/1;FBRV/483172840;]',
-      'x-fb-friendly-name': 'Authenticate',
-      'x-fb-connection-type': 'Unknown',
-      'accept-encoding': 'gzip, deflate',
-      'content-type': 'application/x-www-form-urlencoded',
-      'x-fb-http-engine': 'Liger'
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'X-FB-Friendly-Name': fb_api_req_friendly_name,
+      'X-FB-Connection-Type': 'MOBILE.LTE',
+      'X-FB-Connection-Quality': 'EXCELLENT',
+      'X-FB-HTTP-Engine': 'Liger',
+      'Accept-Encoding': 'gzip, deflate'
     };
 
     const data = new URLSearchParams({
-      adid: generateRandomHex(16),
+      adid: adid,
       format: 'json',
-      device_id: uuidv4(),
+      device_id: device_id,
       email: email,
       password: password,
-      generate_analytics_claims: '0',
       credentials_type: 'password',
       source: 'login',
       error_detail_type: 'button_with_disabled',
-      enroll_misauth: 'false',
       generate_session_cookies: '1',
-      generate_machine_id: '0',
-      fb_api_req_friendly_name: 'authenticate',
+      generate_machine_id: '1',
+      fb_api_req_friendly_name: fb_api_req_friendly_name,
+      method: 'auth.login',
+      jazoest: jazoest,
+      locale: 'en_US',
+      client_country_code: 'US',
+      fb_api_caller_class: 'com.facebook.account.login.protocol.Fb4aAuthHandler',
+      fb_api_analytics_tags: '[]'
     });
 
     const response = await axios.post(
       'https://b-graph.facebook.com/auth/login',
       data,
-      { headers }
+      { 
+        headers
+      }
     );
 
     if (response.data.access_token && response.data.session_cookies) {
@@ -222,7 +224,7 @@ app.post('/api/login', async (req, res) => {
     console.error('Login error:', error.response?.data || error.message);
     return res.status(500).json({
       success: false,
-      error: error.response?.data?.error?.message || 'Login failed'
+      error: error.response?.data?.error?.message || 'Login failed. Please check your credentials.'
     });
   }
 });
