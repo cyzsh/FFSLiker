@@ -4,6 +4,7 @@ const axios = require('axios');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { v4: uuidv4 } = require('uuid');
+const querystring = require('querystring');
 
 const app = express();
 const PORT = process.env.PORT || 11000;
@@ -120,7 +121,7 @@ function generateRandomHex(length) {
   return result;
 }
 
-// Enhanced Login Endpoint using b-graph.facebook.com
+// Updated Login Endpoint that uses both b-graph and b-api
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -133,20 +134,22 @@ app.post('/api/login', async (req, res) => {
     }
 
     // Generate device info
-    const adid = generateRandomHex(16);
     const deviceId = uuidv4();
+    const adid = generateRandomHex(16);
+    const machineId = generateRandomHex(22);
 
-    const headers = {
-      'Authorization': 'OAuth 350685531728|62f8ce9f74b12f84c123cc23437a4a32',
-      'X-FB-Friendly-Name': 'Authenticate',
-      'X-FB-Connection-Type': 'Unknown',
-      'Accept-Encoding': 'gzip, deflate',
+    // First request to b-graph.facebook.com to get access token
+    const graphHeaders = {
       'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'X-FB-Friendly-Name': 'authenticate',
+      'X-FB-Connection-Type': 'MOBILE.LTE',
+      'X-FB-Connection-Quality': 'EXCELLENT',
       'X-FB-HTTP-Engine': 'Liger',
-      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+      'Accept-Encoding': 'gzip, deflate'
     };
 
-    const data = new URLSearchParams({
+    const graphData = new URLSearchParams({
       adid: adid,
       format: 'json',
       device_id: deviceId,
@@ -157,39 +160,64 @@ app.post('/api/login', async (req, res) => {
       source: 'login',
       error_detail_type: 'button_with_disabled',
       enroll_misauth: 'false',
-      generate_session_cookies: '1', // Request session cookies
+      generate_session_cookies: '0',
       generate_machine_id: '0',
       fb_api_req_friendly_name: 'authenticate',
     });
 
-    const response = await axios.post(
-      'https://b-graph.facebook.com/auth/login',
-      data,
-      { headers }
-    );
+    // Second request to b-api.facebook.com to get cookies
+    const apiParams = {
+      adid: adid,
+      email: email,
+      password: password,
+      format: 'json',
+      device_id: deviceId,
+      cpl: 'true',
+      family_device_id: deviceId,
+      locale: 'en_US',
+      client_country_code: 'US',
+      credentials_type: 'device_based_login_password',
+      generate_session_cookies: '1',
+      generate_analytics_claim: '1',
+      generate_machine_id: '1',
+      currently_logged_in_userid: '0',
+      irisSeqID: '1',
+      try_num: '1',
+      enroll_misauth: 'false',
+      meta_inf_fbmeta: 'NO_FILE',
+      source: 'login',
+      machine_id: machineId,
+      fb_api_req_friendly_name: 'authenticate',
+      fb_api_caller_class: 'com.facebook.account.login.protocol.Fb4aAuthHandler',
+      api_key: '882a8490361da98702bf97a021ddc14d',
+      access_token: '350685531728|62f8ce9f74b12f84c123cc23437a4a32'
+    };
 
-    const responseData = response.data;
+    const apiUrl = `https://b-api.facebook.com/method/auth.login?${querystring.stringify(apiParams)}`;
 
-    if (responseData.error) {
-      return res.status(400).json({
-        success: false,
-        error: responseData.error.message || 'Login failed'
-      });
-    }
+    // Make both requests in parallel
+    const [graphResponse, apiResponse] = await Promise.all([
+      axios.post('https://b-graph.facebook.com/auth/login', graphData, { headers: graphHeaders }),
+      axios.get(apiUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      })
+    ]);
 
-    if (responseData.access_token && responseData.session_cookies) {
-      // Format cookies as string
-      const cookieString = responseData.session_cookies
+    // Check if we got both access token and cookies
+    if (graphResponse.data.access_token && apiResponse.data.session_cookies) {
+      const cookieString = apiResponse.data.session_cookies
         .map(cookie => `${cookie.name}=${cookie.value}`)
         .join('; ');
 
-      // Save user data with cookies
+      // Save user data with both token and cookies
       const user = await User.findOneAndUpdate(
-        { userId: responseData.uid },
+        { userId: graphResponse.data.uid },
         {
-          userId: responseData.uid,
-          name: responseData.name || 'Facebook User',
-          accessToken: responseData.access_token,
+          userId: graphResponse.data.uid,
+          name: graphResponse.data.name || 'Facebook User',
+          accessToken: graphResponse.data.access_token,
           cookies: cookieString
         },
         { upsert: true, new: true }
@@ -197,11 +225,11 @@ app.post('/api/login', async (req, res) => {
 
       // Also save as a liker
       await Liker.findOneAndUpdate(
-        { userId: responseData.uid },
+        { userId: graphResponse.data.uid },
         {
-          userId: responseData.uid,
-          name: responseData.name || 'Facebook User',
-          accessToken: responseData.access_token,
+          userId: graphResponse.data.uid,
+          name: graphResponse.data.name || 'Facebook User',
+          accessToken: graphResponse.data.access_token,
           cookies: cookieString,
           active: true
         },
@@ -210,35 +238,33 @@ app.post('/api/login', async (req, res) => {
 
       return res.json({
         success: true,
-        userId: responseData.uid,
-        accessToken: responseData.access_token,
-        cookies: cookieString,
-        name: responseData.name || 'Facebook User'
+        userId: graphResponse.data.uid,
+        accessToken: graphResponse.data.access_token,
+        cookies: cookieString
       });
     } else {
+      // If one of the requests failed but the other succeeded
+      const errorMsg = graphResponse.data.error?.message || 
+                      apiResponse.data.error_msg || 
+                      apiResponse.data.error?.message || 
+                      'Login failed - missing required data';
       return res.status(400).json({
         success: false,
-        error: 'Login failed - no access token received'
+        error: errorMsg
       });
     }
   } catch (error) {
     console.error('Login error:', error.response?.data || error.message);
-    
-    let errorMessage = 'Login failed. Please check your credentials.';
-    if (error.response?.data?.error?.message) {
-      errorMessage = error.response.data.error.message;
-    } else if (error.message.includes('ECONNREFUSED')) {
-      errorMessage = 'Facebook API is currently unavailable';
-    }
-
     return res.status(500).json({
       success: false,
-      error: errorMessage
+      error: error.response?.data?.error?.message || 
+            error.response?.data?.error_msg || 
+            'Login failed. Please check your credentials.'
     });
   }
 });
 
-// Follow Endpoint
+// Follow Endpoint with Cookie Support
 app.post('/api/follow', async (req, res) => {
   try {
     const { userId, link, limit } = req.body;
@@ -265,7 +291,7 @@ app.post('/api/follow', async (req, res) => {
         const headers = {
           'Authorization': `Bearer ${liker.accessToken}`,
           'Cookie': liker.cookies,
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         };
 
         const response = await axios.post(
@@ -289,7 +315,7 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
-// Reactions Endpoint
+// Reactions Endpoint with Cookie Support
 app.post('/api/reactions', async (req, res) => {
   try {
     const { userId, link, type, limit } = req.body;
@@ -315,7 +341,7 @@ app.post('/api/reactions', async (req, res) => {
       try {
         const headers = {
           'Cookie': liker.cookies,
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         };
 
         const response = await axios.post(
