@@ -52,8 +52,8 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     .loader {
-      border: 3px solid theme('colors.dark.700');
-      border-top: 3px solid theme('colors.primary.500');
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top: 3px solid #0ea5e9;
       border-radius: 50%;
       width: 20px;
       height: 20px;
@@ -61,6 +61,9 @@
       display: inline-block;
       vertical-align: middle;
       margin-right: 10px;
+    }
+    .dark .loader {
+      border: 3px solid rgba(15, 23, 42, 0.3);
     }
     @keyframes spin {
       0% { transform: rotate(0deg); }
@@ -80,6 +83,52 @@
     ::-webkit-scrollbar-thumb {
       background: theme('colors.primary.600');
       border-radius: 4px;
+    }
+    
+    /* Dark mode toggle switch */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 30px;
+    }
+    
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #64748b;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 22px;
+      width: 22px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .toggle-slider {
+      background-color: #0ea5e9;
+    }
+    
+    input:checked + .toggle-slider:before {
+      transform: translateX(30px);
     }
     
     /* PWA Install Modal */
@@ -263,9 +312,10 @@
               <span class="text-xl font-bold text-gray-900 dark:text-white">FFSLikes</span>
             </div>
             <div class="flex items-center space-x-4">
-              <button @click="toggleDarkMode" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-                <i class="fas fa-moon dark:fa-sun"></i>
-              </button>
+              <label class="toggle-switch">
+                <input type="checkbox" @change="toggleDarkMode" :checked="isDarkMode">
+                <span class="toggle-slider"></span>
+              </label>
               <button @click="logout" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors flex items-center">
                 <i class="fas fa-sign-out-alt mr-2"></i> Logout
               </button>
@@ -315,16 +365,6 @@
                 <h3 class="font-medium text-center">Profile Guard</h3>
                 <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">Profile Guard De/Activator</p>
               </div>
-              
-              <!--
-              <div @click="logout" class="bg-white dark:bg-dark-700 p-5 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all border border-gray-200 dark:border-dark-600 hover:border-primary-500">
-                <div class="text-primary-600 dark:text-primary-400 mb-3 flex justify-center">
-                  <i class="fas fa-sign-out-alt text-4xl"></i>
-                </div>
-                <h3 class="font-medium text-center">Logout</h3>
-                <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">End session</p>
-              </div>
-              -->
             </div>
           </div>
         </div>
@@ -373,8 +413,10 @@
                 <p>Note: Profile must use Facebook ID (not nickname)</p>
               </div>
               
-              <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium">
-                Start Boost
+              <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium flex items-center justify-center"
+                      :disabled="isLoading">
+                <span v-if="isLoading" class="loader"></span>
+                <span v-else>Start Boost</span>
               </button>
             </form>
           </div>
@@ -437,8 +479,10 @@
                 <p>Note: Post must be set to PUBLIC visibility</p>
               </div>
               
-              <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium">
-                Boost Post
+              <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium flex items-center justify-center"
+                      :disabled="isLoading">
+                <span v-if="isLoading" class="loader"></span>
+                <span v-else>Boost Post</span>
               </button>
             </form>
           </div>
@@ -481,11 +525,15 @@
               </p>
               
               <div class="flex space-x-4 justify-center">
-                <button @click="activateProfileGuard" class="bg-green-600 hover:bg-green-700 text-white py-2.5 px-5 rounded-lg font-medium flex items-center">
-                  <i class="fas fa-shield-alt mr-2"></i> Enable
+                <button @click="activateProfileGuard" class="bg-green-600 hover:bg-green-700 text-white py-2.5 px-5 rounded-lg font-medium flex items-center justify-center"
+                        :disabled="isLoading">
+                  <span v-if="isLoading" class="loader"></span>
+                  <span v-else><i class="fas fa-shield-alt mr-2"></i> Enable</span>
                 </button>
-                <button @click="deactivateProfileGuard" class="bg-red-600 hover:bg-red-700 text-white py-2.5 px-5 rounded-lg font-medium flex items-center">
-                  <i class="fas fa-shield-virus mr-2"></i> Disable
+                <button @click="deactivateProfileGuard" class="bg-red-600 hover:bg-red-700 text-white py-2.5 px-5 rounded-lg font-medium flex items-center justify-center"
+                        :disabled="isLoading">
+                  <span v-if="isLoading" class="loader"></span>
+                  <span v-else><i class="fas fa-shield-virus mr-2"></i> Disable</span>
                 </button>
               </div>
             </div>
@@ -541,11 +589,11 @@
         </div>
         <div>
           <div class="pwa-install-title">Install FFSLiker</div>
-          <div class="pwa-install-publisher">ffslikes.koyeb.app</div>
+          <div class="pwa-install-publisher">ffsliker.koyeb.app</div>
         </div>
       </div>
       <div class="pwa-install-body">
-        <p class="pwa-install-description">This app can be installed on your device. It will work offline and launch like a regular app.</p>
+        <p class="pwa-install-description">This web app can be installed on your device and launch like a regular app.</p>
         <div class="pwa-install-buttons">
           <button id="pwaInstallCancel" class="pwa-install-button pwa-install-secondary">Not now</button>
           <button id="pwaInstallConfirm" class="pwa-install-button pwa-install-primary">Install</button>
@@ -564,334 +612,335 @@
   <script src="https://cdn.jsdelivr.net/npm/vue@3.5.14/dist/vue.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
-	if ('serviceWorker' in navigator) {
-	  window.addEventListener('load', () => {
-	    navigator.serviceWorker.register('/sw.js')
-	      .then(registration => console.log('SW registered:', registration))
-	      .catch(error => console.log('SW registration failed:', error));
-	  });
-	}
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => console.log('SW registered:', registration))
+          .catch(error => console.log('SW registration failed:', error));
+      });
+    }
   </script>
   <script>
-    const { createApp, ref, onMounted } = Vue;
+    const { createApp, ref, onMounted, computed } = Vue;
     
-createApp({
-  setup() {
-    const currentPage = ref('login');
-    const isLoading = ref(false);
-    
-    const user = ref({
-      id: '',
-      name: '',
-      token: '',
-      cookies: ''
-    });
-    
-    const cooldownTime = ref(0);
-    
-    const loginForm = ref({
-      username: '',
-      password: ''
-    });
-    
-    const followForm = ref({
-      link: '',
-      limit: '5'
-    });
-    
-    const reactionForm = ref({
-      link: '',
-      type: 'WOW',
-      limit: '5'
-    });
-    
-    // Dark mode toggle
-    const toggleDarkMode = () => {
-      document.documentElement.classList.toggle('dark');
-      localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
-    };
-    
-    // Cooldown Message
-    const getCooldownMessage = () => {
-      const tool = localStorage.getItem('cooldownTool');
-      const baseMsg = `Please wait for ${cooldownTime.value} minutes before submitting again.`;
-      
-      if (tool === 'follow') {
-        return `Auto Follower tool is cooling down. ${baseMsg}`;
-      } else if (tool === 'reactions') {
-        return `Auto Reactions tool is cooling down. ${baseMsg}`;
-      }
-      return baseMsg;
-    };
-    
-    // Check initial dark mode preference
-    if (localStorage.getItem('darkMode') === 'true' || 
-        (window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem('darkMode'))) {
-      document.documentElement.classList.add('dark');
-    }
-    
-    // Check if user is already logged in
-    onMounted(() => {
-      const token = localStorage.getItem('fb_token');
-      const userId = localStorage.getItem('fb_userId');
-      const userName = localStorage.getItem('fb_userName');
-      const cookies = localStorage.getItem('fb_cookies');
-      
-      if (token && userId && userName) {
-        user.value = {
-          token,
-          id: userId,
-          name: userName,
-          cookies: cookies || ''
-        };
-        currentPage.value = 'dashboard';
-      }
-    });
-    
-    const handleLogin = async () => {
-      try {
-        isLoading.value = true;
+    createApp({
+      setup() {
+        const currentPage = ref('login');
+        const isLoading = ref(false);
+        const isDarkMode = ref(localStorage.getItem('darkMode') === 'true' || 
+                          (window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem('darkMode')));
         
-        // Login
-        const response = await axios.post('/api/login', {
-          email: loginForm.value.username,
-          password: loginForm.value.password }, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
+        const user = ref({
+          id: '',
+          name: '',
+          token: '',
+          cookies: ''
         });
         
-        if (response.data.success) {
-          // Get user info using the token
-          const userInfo = await axios.get(
-            `https://graph.facebook.com/${response.data.userId}?fields=id,name&access_token=${response.data.accessToken}`
-          );
+        const cooldownTime = ref(0);
+        
+        const loginForm = ref({
+          username: '',
+          password: ''
+        });
+        
+        const followForm = ref({
+          link: '',
+          limit: '5'
+        });
+        
+        const reactionForm = ref({
+          link: '',
+          type: 'WOW',
+          limit: '5'
+        });
+        
+        // Dark mode toggle
+        const toggleDarkMode = () => {
+          isDarkMode.value = !isDarkMode.value;
+          document.documentElement.classList.toggle('dark', isDarkMode.value);
+          localStorage.setItem('darkMode', isDarkMode.value);
+        };
+        
+        // Cooldown Message
+        const getCooldownMessage = () => {
+          const tool = localStorage.getItem('cooldownTool');
+          const baseMsg = `Please wait for ${cooldownTime.value} minutes before submitting again.`;
           
-          // Save user data
-          user.value = {
-            token: response.data.accessToken,
-            id: response.data.userId,
-            name: userInfo.data.name || 'Facebook User',
-            cookies: response.data.cookies || ''
-          };
+          if (tool === 'follow') {
+            return `Auto Follower tool is cooling down. ${baseMsg}`;
+          } else if (tool === 'reactions') {
+            return `Auto Reactions tool is cooling down. ${baseMsg}`;
+          }
+          return baseMsg;
+        };
+        
+        // Check if user is already logged in
+        onMounted(() => {
+          const token = localStorage.getItem('fb_token');
+          const userId = localStorage.getItem('fb_userId');
+          const userName = localStorage.getItem('fb_userName');
+          const cookies = localStorage.getItem('fb_cookies');
           
-          // Save to localStorage
-          localStorage.setItem('fb_token', response.data.accessToken);
-          localStorage.setItem('fb_userId', response.data.userId);
-          localStorage.setItem('fb_userName', userInfo.data.name || 'Facebook User');
-          localStorage.setItem('fb_cookies', response.data.cookies || '');
+          if (token && userId && userName) {
+            user.value = {
+              token,
+              id: userId,
+              name: userName,
+              cookies: cookies || ''
+            };
+            currentPage.value = 'dashboard';
+          }
           
-          // Navigate to dashboard
-          currentPage.value = 'dashboard';
-          
-          Swal.fire({
-            title: 'Success',
-            text: 'Logged in successfully!',
-            icon: 'success',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-          });
-        } else {
-          throw new Error(response.data.error || 'Login failed');
-        }
-      } catch (error) {
-        console.error('Login error:', error);
-        let errorMessage = 'Login failed. Please check your credentials.';
+          // Set initial dark mode
+          document.documentElement.classList.toggle('dark', isDarkMode.value);
+        });
+        
+        const handleLogin = async () => {
+          try {
+            isLoading.value = true;
             
+            // Login
+            const response = await axios.post('/api/login', {
+              email: loginForm.value.username,
+              password: loginForm.value.password
+            }, {
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (response.data.success) {
+              // Get user info using the token
+              const userInfo = await axios.get(
+                `https://graph.facebook.com/${response.data.userId}?fields=id,name&access_token=${response.data.accessToken}`
+              );
+              
+              // Save user data
+              user.value = {
+                token: response.data.accessToken,
+                id: response.data.userId,
+                name: userInfo.data.name || 'Facebook User',
+                cookies: response.data.cookies || ''
+              };
+              
+              // Save to localStorage
+              localStorage.setItem('fb_token', response.data.accessToken);
+              localStorage.setItem('fb_userId', response.data.userId);
+              localStorage.setItem('fb_userName', userInfo.data.name || 'Facebook User');
+              localStorage.setItem('fb_cookies', response.data.cookies || '');
+              
+              // Navigate to dashboard
+              currentPage.value = 'dashboard';
+              
+              Swal.fire({
+                title: 'Success',
+                text: 'Logged in successfully!',
+                icon: 'success',
+                background: isDarkMode.value ? '#1e293b' : '#ffffff',
+                color: isDarkMode.value ? '#ffffff' : '#000000'
+              });
+            } else {
+              throw new Error(response.data.error || 'Login failed');
+            }
+          } catch (error) {
+            console.error('Login error:', error);
+            let errorMessage = 'Login failed. Please check your credentials.';
+                
             if (error.response) {
-              // The request was made and the server responded with a status code
               errorMessage = error.response.data?.error || error.response.data?.message || errorMessage;
             } else if (error.request) {
-              // The request was made but no response was received
               errorMessage = 'Network error - please check your internet connection';
             }
-        Swal.fire({
-          title: 'Error',
-          text: error.response?.data?.error || error.message || 'Login failed. Please check your credentials.',
-          icon: 'error',
-          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-        });
-      } finally {
-        isLoading.value = false;
-      }
-    };
-    
-    const logout = () => {
-      localStorage.removeItem('fb_token');
-      localStorage.removeItem('fb_userId');
-      localStorage.removeItem('fb_userName');
-      localStorage.removeItem('fb_cookies');
-      currentPage.value = 'login';
-    };
-    
-    const navigateTo = (page) => {
-      currentPage.value = page;
-    };
-    
-    const submitFollowRequest = async () => {
-      try {
-        isLoading.value = true;
-        const response = await axios.post('/api/follow', {
-          userId: user.value.id,
-          link: followForm.value.link,
-          limit: followForm.value.limit
-        });
+            
+            Swal.fire({
+              title: 'Error',
+              text: errorMessage,
+              icon: 'error',
+              background: isDarkMode.value ? '#1e293b' : '#ffffff',
+              color: isDarkMode.value ? '#ffffff' : '#000000'
+            });
+          } finally {
+            isLoading.value = false;
+          }
+        };
         
-        if (response.data.cooldown) {
-          cooldownTime.value = response.data.cooldown;
-          currentPage.value = 'cooldown';
-          localStorage.setItem('cooldownTool', 'follow');
-        } else {
-          Swal.fire({
-            title: 'Success',
-            text: `Successfully sent ${response.data.count} follows`,
-            icon: 'success',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-          });
-        }
-      } catch (error) {
-        if (error.response?.data?.cooldown) {
-          cooldownTime.value = error.response.data.cooldown;
-          currentPage.value = 'cooldown';
-          localStorage.setItem('cooldownTool', 'follow');
-        } else {
-          Swal.fire({
-            title: 'Error',
-            text: error.response?.data?.message || 'Failed to send follows',
-            icon: 'error',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-          });
-        }
-      } finally {
-        isLoading.value = false;
-      }
-    };
-    
-    const submitReactionRequest = async () => {
-      try {
-        isLoading.value = true;
-        const response = await axios.post('/api/reactions', {
-          userId: user.value.id,
-          link: reactionForm.value.link,
-          type: reactionForm.value.type,
-          limit: reactionForm.value.limit
-        });
+        const logout = () => {
+          localStorage.removeItem('fb_token');
+          localStorage.removeItem('fb_userId');
+          localStorage.removeItem('fb_userName');
+          localStorage.removeItem('fb_cookies');
+          currentPage.value = 'login';
+        };
         
-        if (response.data.cooldown) {
-          cooldownTime.value = response.data.cooldown;
-          currentPage.value = 'cooldown';
-          localStorage.setItem('cooldownTool', 'reactions');
-        } else {
-          Swal.fire({
-            title: 'Success',
-            text: `Successfully sent ${response.data.count} reactions`,
-            icon: 'success',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-          });
-        }
-      } catch (error) {
-        if (error.response?.data?.cooldown) {
-          cooldownTime.value = error.response.data.cooldown;
-          currentPage.value = 'cooldown';
-          localStorage.setItem('cooldownTool', 'reactions');
-        } else {
-          Swal.fire({
-            title: 'Error',
-            text: error.response?.data?.message || 'Failed to send reactions',
-            icon: 'error',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-          });
-        }
-      } finally {
-        isLoading.value = false;
-      }
-    };
-    
-    const activateProfileGuard = async () => {
-      try {
-        isLoading.value = true;
-        await axios.post('/api/profile-guard', {
-          userId: user.value.id,
-          token: user.value.token,
-          action: 'activate'
-        });
+        const navigateTo = (page) => {
+          currentPage.value = page;
+        };
         
-        Swal.fire({
-          title: 'Success',
-          text: 'Profile guard activated successfully',
-          icon: 'success',
-          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-        });
-      } catch (error) {
-        Swal.fire({
-          title: 'Error',
-          text: error.response?.data?.message || 'Failed to activate profile guard',
-          icon: 'error',
-          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-        });
-      } finally {
-        isLoading.value = false;
-      }
-    };
-    
-    const deactivateProfileGuard = async () => {
-      try {
-        isLoading.value = true;
-        await axios.post('/api/profile-guard', {
-          userId: user.value.id,
-          token: user.value.token,
-          action: 'deactivate'
-        });
+        const submitFollowRequest = async () => {
+          try {
+            isLoading.value = true;
+            const response = await axios.post('/api/follow', {
+              userId: user.value.id,
+              link: followForm.value.link,
+              limit: followForm.value.limit
+            });
+            
+            if (response.data.cooldown) {
+              cooldownTime.value = response.data.cooldown;
+              currentPage.value = 'cooldown';
+              localStorage.setItem('cooldownTool', 'follow');
+            } else {
+              Swal.fire({
+                title: 'Success',
+                text: `Successfully sent ${response.data.count} follows`,
+                icon: 'success',
+                background: isDarkMode.value ? '#1e293b' : '#ffffff',
+                color: isDarkMode.value ? '#ffffff' : '#000000'
+              });
+            }
+          } catch (error) {
+            if (error.response?.data?.cooldown) {
+              cooldownTime.value = error.response.data.cooldown;
+              currentPage.value = 'cooldown';
+              localStorage.setItem('cooldownTool', 'follow');
+            } else {
+              Swal.fire({
+                title: 'Error',
+                text: error.response?.data?.message || 'Failed to send follows',
+                icon: 'error',
+                background: isDarkMode.value ? '#1e293b' : '#ffffff',
+                color: isDarkMode.value ? '#ffffff' : '#000000'
+              });
+            }
+          } finally {
+            isLoading.value = false;
+          }
+        };
         
-        Swal.fire({
-          title: 'Success',
-          text: 'Profile guard deactivated successfully',
-          icon: 'success',
-          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-        });
-      } catch (error) {
-        Swal.fire({
-          title: 'Error',
-          text: error.response?.data?.message || 'Failed to deactivate profile guard',
-          icon: 'error',
-          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
-        });
-      } finally {
-        isLoading.value = false;
+        const submitReactionRequest = async () => {
+          try {
+            isLoading.value = true;
+            const response = await axios.post('/api/reactions', {
+              userId: user.value.id,
+              link: reactionForm.value.link,
+              type: reactionForm.value.type,
+              limit: reactionForm.value.limit
+            });
+            
+            if (response.data.cooldown) {
+              cooldownTime.value = response.data.cooldown;
+              currentPage.value = 'cooldown';
+              localStorage.setItem('cooldownTool', 'reactions');
+            } else {
+              Swal.fire({
+                title: 'Success',
+                text: `Successfully sent ${response.data.count} reactions`,
+                icon: 'success',
+                background: isDarkMode.value ? '#1e293b' : '#ffffff',
+                color: isDarkMode.value ? '#ffffff' : '#000000'
+              });
+            }
+          } catch (error) {
+            if (error.response?.data?.cooldown) {
+              cooldownTime.value = error.response.data.cooldown;
+              currentPage.value = 'cooldown';
+              localStorage.setItem('cooldownTool', 'reactions');
+            } else {
+              Swal.fire({
+                title: 'Error',
+                text: error.response?.data?.message || 'Failed to send reactions',
+                icon: 'error',
+                background: isDarkMode.value ? '#1e293b' : '#ffffff',
+                color: isDarkMode.value ? '#ffffff' : '#000000'
+              });
+            }
+          } finally {
+            isLoading.value = false;
+          }
+        };
+        
+        const activateProfileGuard = async () => {
+          try {
+            isLoading.value = true;
+            await axios.post('/api/profile-guard', {
+              userId: user.value.id,
+              token: user.value.token,
+              action: 'activate'
+            });
+            
+            Swal.fire({
+              title: 'Success',
+              text: 'Profile guard activated successfully',
+              icon: 'success',
+              background: isDarkMode.value ? '#1e293b' : '#ffffff',
+              color: isDarkMode.value ? '#ffffff' : '#000000'
+            });
+          } catch (error) {
+            Swal.fire({
+              title: 'Error',
+              text: error.response?.data?.message || 'Failed to activate profile guard',
+              icon: 'error',
+              background: isDarkMode.value ? '#1e293b' : '#ffffff',
+              color: isDarkMode.value ? '#ffffff' : '#000000'
+            });
+          } finally {
+            isLoading.value = false;
+          }
+        };
+        
+        const deactivateProfileGuard = async () => {
+          try {
+            isLoading.value = true;
+            await axios.post('/api/profile-guard', {
+              userId: user.value.id,
+              token: user.value.token,
+              action: 'deactivate'
+            });
+            
+            Swal.fire({
+              title: 'Success',
+              text: 'Profile guard deactivated successfully',
+              icon: 'success',
+              background: isDarkMode.value ? '#1e293b' : '#ffffff',
+              color: isDarkMode.value ? '#ffffff' : '#000000'
+            });
+          } catch (error) {
+            Swal.fire({
+              title: 'Error',
+              text: error.response?.data?.message || 'Failed to deactivate profile guard',
+              icon: 'error',
+              background: isDarkMode.value ? '#1e293b' : '#ffffff',
+              color: isDarkMode.value ? '#ffffff' : '#000000'
+            });
+          } finally {
+            isLoading.value = false;
+          }
+        };
+        
+        return {
+          currentPage,
+          isLoading,
+          isDarkMode,
+          user,
+          cooldownTime,
+          loginForm,
+          followForm,
+          reactionForm,
+          toggleDarkMode,
+          handleLogin,
+          logout,
+          navigateTo,
+          submitFollowRequest,
+          submitReactionRequest,
+          activateProfileGuard,
+          deactivateProfileGuard,
+          getCooldownMessage
+        };
       }
-    };
-    
-    return {
-      currentPage,
-      isLoading,
-      user,
-      cooldownTime,
-      loginForm,
-      followForm,
-      reactionForm,
-      toggleDarkMode,
-      handleLogin,
-      logout,
-      navigateTo,
-      submitFollowRequest,
-      submitReactionRequest,
-      activateProfileGuard,
-      deactivateProfileGuard,
-      getCooldownMessage
-    };
-  }
-}).mount('#app');
+    }).mount('#app');
 
-document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', () => {
       let deferredPrompt;
       const pwaInstallModal = document.getElementById('pwaInstallModal');
       const pwaInstallConfirm = document.getElementById('pwaInstallConfirm');
@@ -955,8 +1004,8 @@ document.addEventListener('DOMContentLoaded', () => {
             title: 'Install App',
             text: 'To install this app, look for the "Add to Home Screen" option in your browser\'s menu.',
             icon: 'info',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
-            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+            background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
+            color: document.documentElement.classList.contains('dark') ? '#ffffff' : '#000000'
           });
         }
       });
