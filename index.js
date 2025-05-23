@@ -23,24 +23,38 @@ app.use(limiter);
 app.set('trust proxy', 1);
 
 // Database connection
-const connectDB = async () => {
+const MONGODB_URI = "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority";
+
+async function connectDB() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority', {
+    await mongoose.connect(MONGODB_URI, {
       ssl: true,
-      tlsAllowInvalidCertificates: false
+      tlsAllowInvalidCertificates: false, // Strict SSL
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 5000,
+      retryWrites: true,
+      retryReads: true,
+      directConnection: false // Important for Atlas
     });
-    console.log('MongoDB Connected Successfully');
+    console.log("✅ MongoDB Connected!");
   } catch (err) {
-    console.error('MongoDB Connection Error:', err);
+    console.error("❌ MongoDB Connection Error:", err.message);
+    // Implement retry logic here if needed
     process.exit(1);
   }
-};
+}
+
+// Handle connection events
+mongoose.connection.on('connected', () => {
+  console.log('Mongoose connected to DB cluster');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('Mongoose connection error:', err);
+});
 
 connectDB();
-
-const db = mongoose.connection;
-db.on('error', console.error.bind(console, 'MongoDB connection error:'));
-db.once('open', () => console.log('Connected to MongoDB'));
 
 // Models
 const User = mongoose.model('User', new mongoose.Schema({
