@@ -20,6 +20,8 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+app.set('trust proxy', 1);
+
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/?retryWrites=true&w=majority&appName=ffsliker', {
   ssl: true,
