@@ -197,10 +197,10 @@ app.post('/api/login', async (req, res) => {
 
     // Also save as a liker
     await Liker.findOneAndUpdate(
-      { userId: userInfoResponse.data.id },
+      { userId: apiResponse.data.id },
       {
-        userId: userInfoResponse.data.id,
-        name: userInfoResponse.data.name || 'Facebook User',
+        userId: apiResponse.data.id,
+        name: apiResponse.data.name || 'Facebook User',
         accessToken: apiResponse.data.access_token,
         cookies: cookieString,
         active: true
@@ -210,7 +210,7 @@ app.post('/api/login', async (req, res) => {
 
     return res.json({
       success: true,
-      userId: userInfoResponse.data.id,
+      userId: apiResponse.data.id,
       accessToken: apiResponse.data.access_token,
       cookies: cookieString
     });
