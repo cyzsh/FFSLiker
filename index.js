@@ -139,9 +139,8 @@ app.post('/api/login', async (req, res) => {
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'X-FB-Friendly-Name': fb_api_req_friendly_name,
-      'X-FB-Connection-Type': 'MOBILE.LTE',
-      'X-FB-Connection-Quality': 'EXCELLENT',
+      'X-FB-Friendly-Name': 'Authenticate',
+      'X-FB-Connection-Type': 'unknown',
       'X-FB-HTTP-Engine': 'Liger',
       'Accept-Encoding': 'gzip, deflate'
     };
