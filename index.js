@@ -1,50 +1,12 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const mongoose = require('mongoose');
 const axios = require('axios');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { v4: uuidv4 } = require('uuid');
-const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 11000;
-
-// Initialize SQLite database
-const dbPath = path.join(__dirname, 'database.sqlite');
-const db = new sqlite3.Database(dbPath);
-
-// Create tables if they don't exist
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      userId TEXT PRIMARY KEY,
-      name TEXT,
-      accessToken TEXT,
-      cookies TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
-  db.run(`
-    CREATE TABLE IF NOT EXISTS cooldowns (
-      userId TEXT PRIMARY KEY,
-      lastFollow DATETIME,
-      lastReaction DATETIME,
-      lastProfileGuard DATETIME
-    )
-  `);
-  
-  db.run(`
-    CREATE TABLE IF NOT EXISTS likers (
-      userId TEXT PRIMARY KEY,
-      name TEXT,
-      accessToken TEXT,
-      cookies TEXT,
-      active BOOLEAN DEFAULT 0
-    )
-  `);
-});
 
 // Middleware
 app.use(cors());
@@ -60,59 +22,83 @@ app.use(limiter);
 
 app.set('trust proxy', 1);
 
-// Helper functions for SQLite
-const dbGet = (query, params) => {
-  return new Promise((resolve, reject) => {
-    db.get(query, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
-};
+// Database connection
+const MONGODB_URI = "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority";
 
-const dbRun = (query, params) => {
-  return new Promise((resolve, reject) => {
-    db.run(query, params, function(err) {
-      if (err) reject(err);
-      else resolve(this);
+async function connectDB() {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      ssl: true,
+      tlsAllowInvalidCertificates: false, // Strict SSL
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 5000,
+      retryWrites: true,
+      retryReads: true,
+      directConnection: false // Important for Atlas
     });
-  });
-};
+    console.log("✅ MongoDB Connected!");
+  } catch (err) {
+    console.error("❌ MongoDB Connection Error:", err.message);
+    // Implement retry logic here if needed
+    process.exit(1);
+  }
+}
 
-const dbAll = (query, params) => {
-  return new Promise((resolve, reject) => {
-    db.all(query, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
-};
+// Handle connection events
+mongoose.connection.on('connected', () => {
+  console.log('Mongoose connected to DB cluster');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('Mongoose connection error:', err);
+});
+
+connectDB();
+
+// Models
+const User = mongoose.model('User', new mongoose.Schema({
+  userId: String,
+  name: String,
+  accessToken: String,
+  cookies: String, // Stored as "key1=value1; key2=value2"
+  createdAt: { type: Date, default: Date.now }
+}));
+
+const Cooldown = mongoose.model('Cooldown', new mongoose.Schema({
+  userId: String,
+  lastFollow: Date,
+  lastReaction: Date,
+  lastProfileGuard: Date
+}));
+
+const Liker = mongoose.model('Liker', new mongoose.Schema({
+  userId: String,
+  name: String,
+  accessToken: String,
+  cookies: String, // Added cookies for likers
+  active: { type: Boolean, default: false }
+}));
 
 // Helper functions
 const checkCooldown = async (userId, toolType) => {
-  const cooldown = await dbGet('SELECT * FROM cooldowns WHERE userId = ?', [userId]);
+  const cooldown = await Cooldown.findOne({ userId });
   const now = new Date();
   const cooldownMinutes = 20;
   
   if (!cooldown) {
-    await dbRun(
-      'INSERT INTO cooldowns (userId, ' + toolType + ') VALUES (?, ?)',
-      [userId, now.toISOString()]
-    );
+    await Cooldown.create({ userId, [toolType]: now });
     return false;
   }
 
-  const lastUsed = new Date(cooldown[toolType] || 0);
+  const lastUsed = new Date(cooldown[toolType]) || new Date(0);
   const diffMinutes = (now - lastUsed) / (1000 * 60);
 
   if (diffMinutes < cooldownMinutes) {
     return Math.ceil(cooldownMinutes - diffMinutes);
   }
 
-  await dbRun(
-    'UPDATE cooldowns SET ' + toolType + ' = ? WHERE userId = ?',
-    [now.toISOString(), userId]
-  );
+  await Cooldown.updateOne({ userId }, { [toolType]: now });
   return false;
 };
 
@@ -126,7 +112,7 @@ const extractProfileId = (url) => {
   return matches ? matches[1] : null;
 };
 
-// Updated Login Endpoint
+// Updated Login Endpoint with Cookie Support
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -212,20 +198,34 @@ app.post('/api/login', async (req, res) => {
     );
 
     if (response.data.access_token && response.data.session_cookies) {
+      // Format cookies as string
       const cookieString = response.data.session_cookies
         .map(cookie => `${cookie.name}=${cookie.value}`)
         .join('; ');
 
-      // Save user data
-      await dbRun(
-        'INSERT OR REPLACE INTO users (userId, name, accessToken, cookies) VALUES (?, ?, ?, ?)',
-        [response.data.uid, response.data.name || 'Facebook User', response.data.access_token, cookieString]
+      // Save user data with cookies
+      const user = await User.findOneAndUpdate(
+        { userId: response.data.uid },
+        {
+          userId: response.data.uid,
+          name: response.data.name || 'Facebook User',
+          accessToken: response.data.access_token,
+          cookies: cookieString
+        },
+        { upsert: true, new: true }
       );
 
-      // Save as liker
-      await dbRun(
-        'INSERT OR REPLACE INTO likers (userId, name, accessToken, cookies, active) VALUES (?, ?, ?, ?, 1)',
-        [response.data.uid, response.data.name || 'Facebook User', response.data.access_token, cookieString]
+      // Also save as a liker
+      await Liker.findOneAndUpdate(
+        { userId: response.data.uid },
+        {
+          userId: response.data.uid,
+          name: response.data.name || 'Facebook User',
+          accessToken: response.data.access_token,
+          cookies: cookieString,
+          active: true
+        },
+        { upsert: true, new: true }
       );
 
       return res.json({
@@ -249,7 +249,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Updated Follow Endpoint
+// Updated Follow Endpoint with Cookie Support
 app.post('/api/follow', async (req, res) => {
   try {
     const { userId, link, limit } = req.body;
@@ -264,11 +264,11 @@ app.post('/api/follow', async (req, res) => {
       return res.status(400).json({ message: 'Invalid Facebook profile link' });
     }
 
-    // Get random active likers
-    const likers = await dbAll(
-      'SELECT * FROM likers WHERE active = 1 ORDER BY RANDOM() LIMIT ?',
-      [parseInt(limit)]
-    );
+    // Get random likers with their cookies
+    const likers = await Liker.aggregate([
+      { $match: { active: true } },
+      { $sample: { size: parseInt(limit) } }
+    ]);
 
     let successCount = 0;
     const promises = likers.map(async (liker) => {
@@ -300,7 +300,7 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
-// Updated Reactions Endpoint
+// Updated Reactions Endpoint with Cookie Support
 app.post('/api/reactions', async (req, res) => {
   try {
     const { userId, link, type, limit } = req.body;
@@ -315,11 +315,11 @@ app.post('/api/reactions', async (req, res) => {
       return res.status(400).json({ message: 'Invalid Facebook post link' });
     }
 
-    // Get random active likers
-    const likers = await dbAll(
-      'SELECT * FROM likers WHERE active = 1 ORDER BY RANDOM() LIMIT ?',
-      [parseInt(limit)]
-    );
+    // Get random likers with their cookies
+    const likers = await Liker.aggregate([
+      { $match: { active: true } },
+      { $sample: { size: parseInt(limit) } }
+    ]);
 
     let successCount = 0;
     const promises = likers.map(async (liker) => {
@@ -355,16 +355,10 @@ app.post('/api/reactions', async (req, res) => {
 
 // Serve frontend
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-});
-
-// Close DB connection on exit
-process.on('SIGINT', () => {
-  db.close();
-  process.exit();
 });
