@@ -178,6 +178,16 @@ app.post('/api/login', async (req, res) => {
     if (!apiResponse.data.session_cookies) {
       throw new Error(apiResponse.data.error_msg || 'Failed to get session cookies');
     }
+    
+    const userName = await axios.get(
+      `https://graph.facebook.com/me?fields=name&access_token=${apiResponse.data.access_token}`,
+      {
+        headers: {
+          'Cookie': cookieString,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      }
+    );
 
     const cookieString = apiResponse.data.session_cookies
       .map(cookie => `${cookie.name}=${cookie.value}`)
@@ -185,10 +195,10 @@ app.post('/api/login', async (req, res) => {
 
     // Save user data with both token and cookies
     const user = await User.findOneAndUpdate(
-      { userId: apiResponse.data.id },
+      { userId: apiResponse.data.uid },
       {
-        userId: apiResponse.data.id,
-        name: apiResponse.data.name || 'Facebook User',
+        userId: apiResponse.data.uid,
+        name: userName.data.name || 'Facebook User',
         accessToken: apiResponse.data.access_token,
         cookies: cookieString
       },
@@ -197,10 +207,10 @@ app.post('/api/login', async (req, res) => {
 
     // Also save as a liker
     await Liker.findOneAndUpdate(
-      { userId: apiResponse.data.id },
+      { userId: apiResponse.data.uid },
       {
-        userId: apiResponse.data.id,
-        name: apiResponse.data.name || 'Facebook User',
+        userId: apiResponse.data.uid,
+        name: userName.data.name || 'Facebook User',
         accessToken: apiResponse.data.access_token,
         cookies: cookieString,
         active: true
@@ -210,7 +220,8 @@ app.post('/api/login', async (req, res) => {
 
     return res.json({
       success: true,
-      userId: apiResponse.data.id,
+      userId: apiResponse.data.uid,
+      name: userName.data.name,
       accessToken: apiResponse.data.access_token,
       cookies: cookieString
     });
