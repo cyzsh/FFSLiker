@@ -166,14 +166,7 @@ app.post('/api/login', async (req, res) => {
 
     const apiUrl = `https://b-api.facebook.com/method/auth.login?${querystring.stringify(apiParams)}`;
 
-    const apiResponse = await axios.get(apiUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'X-FB-Friendly-Name': 'authenticate',
-        'X-FB-Connection-Type': 'MOBILE.LTE',
-        'X-FB-Connection-Quality': 'EXCELLENT'
-      }
-    });
+    const apiResponse = await axios.get(apiUrl);
 
     if (!apiResponse.data.session_cookies) {
       throw new Error(apiResponse.data.error_msg || 'Failed to get session cookies');
