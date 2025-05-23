@@ -178,7 +178,11 @@ app.post('/api/login', async (req, res) => {
     if (!apiResponse.data.session_cookies) {
       throw new Error(apiResponse.data.error_msg || 'Failed to get session cookies');
     }
-    
+
+    const cookieString = apiResponse.data.session_cookies
+      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .join('; ');
+      
     const userName = await axios.get(
       `https://graph.facebook.com/me?fields=name&access_token=${apiResponse.data.access_token}`,
       {
@@ -188,10 +192,6 @@ app.post('/api/login', async (req, res) => {
         }
       }
     );
-
-    const cookieString = apiResponse.data.session_cookies
-      .map(cookie => `${cookie.name}=${cookie.value}`)
-      .join('; ');
 
     // Save user data with both token and cookies
     const user = await User.findOneAndUpdate(
