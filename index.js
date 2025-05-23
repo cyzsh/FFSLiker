@@ -21,10 +21,12 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/?retryWrites=true&w=majority&appName=ffsliker', {
+  ssl: true,
+  tlsAllowInvalidCertificates: false // Only set to true for testing if absolutely necessary
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
