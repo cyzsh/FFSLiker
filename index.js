@@ -112,6 +112,15 @@ const extractProfileId = (url) => {
   return matches ? matches[1] : null;
 };
 
+function generateRandomHex(length) {
+  const chars = '0123456789abcdef';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 // Updated Login Endpoint with Cookie Support
 app.post('/api/login', async (req, res) => {
   try {
@@ -145,7 +154,7 @@ app.post('/api/login', async (req, res) => {
     };
 
     const data = new URLSearchParams({
-      adid: this.generateRandomHex(16),
+      adid: generateRandomHex(16),
       format: 'json',
       device_id: uuidv4(),
       email: email,
