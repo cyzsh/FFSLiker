@@ -134,10 +134,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     // Generate device info
-    const device_id = uuidv4();
     const adid = generateRandomHex(16);
-    const jazoest = `2${Math.floor(1000 + Math.random() * 9000)}`;
-    const fb_api_req_friendly_name = 'authenticate';
 
     const headers = {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -152,21 +149,17 @@ app.post('/api/login', async (req, res) => {
     const data = new URLSearchParams({
       adid: adid,
       format: 'json',
-      device_id: device_id,
+      device_id: uuidv4(),
       email: email,
       password: password,
+      generate_analytics_claims: '0',
       credentials_type: 'password',
       source: 'login',
       error_detail_type: 'button_with_disabled',
-      generate_session_cookies: '1',
-      generate_machine_id: '1',
-      fb_api_req_friendly_name: fb_api_req_friendly_name,
-      method: 'auth.login',
-      jazoest: jazoest,
-      locale: 'en_US',
-      client_country_code: 'US',
-      fb_api_caller_class: 'com.facebook.account.login.protocol.Fb4aAuthHandler',
-      fb_api_analytics_tags: '[]'
+      enroll_misauth: 'false',
+      generate_session_cookies: '0',
+      generate_machine_id: '0',
+      fb_api_req_friendly_name: 'authenticate',
     });
 
     const response = await axios.post(
