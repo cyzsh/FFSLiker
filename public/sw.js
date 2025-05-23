@@ -1,11 +1,11 @@
 // Service Worker for FFSLikes PWA
-const CACHE_NAME = 'ffslikes-v1';
+const CACHE_NAME = 'ffsliker-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/app.js',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
+  '/icons/FFS-192x192.png',
+  '/icons/FFS-512x512.png',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/vue@3.5.14/dist/vue.global.min.js',
   'https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js',
