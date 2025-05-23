@@ -121,7 +121,7 @@ function generateRandomHex(length) {
   return result;
 }
 
-// Updated Login Endpoint that uses both b-graph and b-api
+// Updated Login Endpoint with proper API capabilities
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -138,34 +138,7 @@ app.post('/api/login', async (req, res) => {
     const adid = generateRandomHex(16);
     const machineId = generateRandomHex(22);
 
-    // First request to b-graph.facebook.com to get access token
-    const graphHeaders = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'X-FB-Friendly-Name': 'authenticate',
-      'X-FB-Connection-Type': 'MOBILE.LTE',
-      'X-FB-Connection-Quality': 'EXCELLENT',
-      'X-FB-HTTP-Engine': 'Liger',
-      'Accept-Encoding': 'gzip, deflate'
-    };
-
-    const graphData = new URLSearchParams({
-      adid: adid,
-      format: 'json',
-      device_id: deviceId,
-      email: email,
-      password: password,
-      generate_analytics_claims: '0',
-      credentials_type: 'password',
-      source: 'login',
-      error_detail_type: 'button_with_disabled',
-      enroll_misauth: 'false',
-      generate_session_cookies: '0',
-      generate_machine_id: '0',
-      fb_api_req_friendly_name: 'authenticate',
-    });
-
-    // Second request to b-api.facebook.com to get cookies
+    // First request to b-api.facebook.com to get cookies
     const apiParams = {
       adid: adid,
       email: email,
@@ -195,70 +168,73 @@ app.post('/api/login', async (req, res) => {
 
     const apiUrl = `https://b-api.facebook.com/method/auth.login?${querystring.stringify(apiParams)}`;
 
-    // Make both requests in parallel
-    const [graphResponse, apiResponse] = await Promise.all([
-      axios.post('https://b-graph.facebook.com/auth/login', graphData, { headers: graphHeaders }),
-      axios.get(apiUrl, {
+    const apiResponse = await axios.get(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'X-FB-Friendly-Name': 'authenticate',
+        'X-FB-Connection-Type': 'MOBILE.LTE',
+        'X-FB-Connection-Quality': 'EXCELLENT'
+      }
+    });
+
+    if (!apiResponse.data.session_cookies) {
+      throw new Error(apiResponse.data.error_msg || 'Failed to get session cookies');
+    }
+
+    // Second request to graph.facebook.com to verify token and get user info
+    const cookieString = apiResponse.data.session_cookies
+      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .join('; ');
+
+    const userInfoResponse = await axios.get(
+      `https://graph.facebook.com/me?fields=id,name&access_token=${apiResponse.data.access_token}`,
+      {
         headers: {
+          'Cookie': cookieString,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-      })
-    ]);
+      }
+    );
 
-    // Check if we got both access token and cookies
-    if (graphResponse.data.access_token && apiResponse.data.session_cookies) {
-      const cookieString = apiResponse.data.session_cookies
-        .map(cookie => `${cookie.name}=${cookie.value}`)
-        .join('; ');
-
-      // Save user data with both token and cookies
-      const user = await User.findOneAndUpdate(
-        { userId: graphResponse.data.uid },
-        {
-          userId: graphResponse.data.uid,
-          name: graphResponse.data.name || 'Facebook User',
-          accessToken: graphResponse.data.access_token,
-          cookies: cookieString
-        },
-        { upsert: true, new: true }
-      );
-
-      // Also save as a liker
-      await Liker.findOneAndUpdate(
-        { userId: graphResponse.data.uid },
-        {
-          userId: graphResponse.data.uid,
-          name: graphResponse.data.name || 'Facebook User',
-          accessToken: graphResponse.data.access_token,
-          cookies: cookieString,
-          active: true
-        },
-        { upsert: true, new: true }
-      );
-
-      return res.json({
-        success: true,
-        userId: graphResponse.data.uid,
-        accessToken: graphResponse.data.access_token,
+    // Save user data with both token and cookies
+    const user = await User.findOneAndUpdate(
+      { userId: userInfoResponse.data.id },
+      {
+        userId: userInfoResponse.data.id,
+        name: userInfoResponse.data.name || 'Facebook User',
+        accessToken: apiResponse.data.access_token,
         cookies: cookieString
-      });
-    } else {
-      // If one of the requests failed but the other succeeded
-      const errorMsg = graphResponse.data.error?.message || 
-                      apiResponse.data.error_msg || 
-                      apiResponse.data.error?.message || 
-                      'Login failed - missing required data';
-      return res.status(400).json({
-        success: false,
-        error: errorMsg
-      });
-    }
+      },
+      { upsert: true, new: true }
+    );
+
+    // Also save as a liker
+    await Liker.findOneAndUpdate(
+      { userId: userInfoResponse.data.id },
+      {
+        userId: userInfoResponse.data.id,
+        name: userInfoResponse.data.name || 'Facebook User',
+        accessToken: apiResponse.data.access_token,
+        cookies: cookieString,
+        active: true
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.json({
+      success: true,
+      userId: userInfoResponse.data.id,
+      accessToken: apiResponse.data.access_token,
+      cookies: cookieString
+    });
+
   } catch (error) {
     console.error('Login error:', error.response?.data || error.message);
     return res.status(500).json({
       success: false,
       error: error.response?.data?.error?.message || 
             error.response?.data?.error_msg || 
+            error.message ||
             'Login failed. Please check your credentials.'
     });
   }
