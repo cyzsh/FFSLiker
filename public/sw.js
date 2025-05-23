@@ -1,5 +1,5 @@
 // Service Worker for FFSLikes PWA
-const CACHE_NAME = 'ffsliker-v1';
+const CACHE_NAME = 'ffsliker-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
