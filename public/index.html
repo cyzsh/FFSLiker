@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FFSLiker</title>
+  <meta name="description" content="Boost your Facebook posts with automatic likes and followers">
+  <meta name="keywords" content="facebook autoliker, free likes, facebook followers">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0ea5e9">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/FFS-192x192.png">
+  <link rel="icon" href="img/icons/FFS-512x512.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Roboto Mono', 'monospace']
+          },
+          colors: {
+            primary: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              200: '#bae6fd',
+              300: '#7dd3fc',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+            },
+            dark: {
+              900: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+              600: '#475569',
+              500: '#64748b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .loader {
+      border: 3px solid theme('colors.dark.700');
+      border-top: 3px solid theme('colors.primary.500');
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* Smooth transitions */
+    * {
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: theme('colors.dark.800');
+    }
+    ::-webkit-scrollbar-thumb {
+      background: theme('colors.primary.600');
+      border-radius: 4px;
+    }
+    
+    /* PWA Install Modal */
+    .pwa-install-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    
+    .pwa-install-modal.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+    
+    .pwa-install-card {
+      background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      width: 100%;
+      max-width: 28rem;
+      margin: 1rem;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      transform: translateY(20px);
+      transition: transform 0.3s ease;
+    }
+    
+    .pwa-install-modal.active .pwa-install-card {
+      transform: translateY(0);
+    }
+    
+    .pwa-install-header {
+      display: flex;
+      align-items: center;
+      padding: 1.5rem;
+    }
+    
+    .pwa-install-icon {
+      background-color: rgba(255, 255, 255, 0.2);
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      margin-right: 1rem;
+    }
+    
+    .pwa-install-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.75rem;
+    }
+    
+    .pwa-install-publisher {
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+    
+    .pwa-install-body {
+      padding: 0 1.5rem 1.5rem;
+    }
+    
+    .pwa-install-description {
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    
+    .pwa-install-buttons {
+      display: flex;
+      gap: 0.75rem;
+    }
+    
+    .pwa-install-button {
+      flex: 1;
+      padding: 0.625rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    
+    .pwa-install-secondary {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+    
+    .pwa-install-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .pwa-install-primary {
+      background-color: white;
+      color: #0ea5e9;
+    }
+    
+    .pwa-install-primary:hover {
+      background-color: #f8fafc;
+      transform: translateY(-1px);
+    }
+    
+    .pwa-manual-install {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+      color: white;
+      padding: 0.75rem 1.25rem;
+      border-radius: 2rem;
+      font-weight: 500;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      z-index: 50;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+    
+    .pwa-manual-install.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    
+    .pwa-manual-install:hover {
+      transform: translateY(-1px) !important;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-dark-900 min-h-screen font-sans text-gray-900 dark:text-gray-100">
+  <div id="app">
+    <!-- Login Page -->
+    <div v-if="currentPage === 'login'" class="container mx-auto px-4 py-8">
+      <div class="max-w-md mx-auto bg-white dark:bg-dark-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-dark-700">
+        <div class="bg-primary-600 dark:bg-primary-800 py-5 px-6">
+          <h1 class="text-white text-2xl font-bold tracking-tight">FFSLiker</h1>
+          <p class="text-primary-200 text-sm mt-1">Facebook Tool</p>
+        </div>
+        <div class="p-6">
+          <h2 class="text-xl font-semibold mb-4">Welcome to FFSLiker!</h2>
+          <p class="text-gray-600 dark:text-gray-400 mb-6">AutoLiker Tools is a social exchange platform that boosts engagement on your posts.</p>
+          
+          <form @submit.prevent="handleLogin" class="space-y-4">
+            <div>
+              <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Username/ID/Email/Phone</label>
+              <input v-model="loginForm.username" type="text" required 
+                     class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-400"
+                     placeholder="User">
+            </div>
+            
+            <div>
+              <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Password</label>
+              <input v-model="loginForm.password" type="password" required 
+                     class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-400"
+                     placeholder="••••••••">
+            </div>
+            
+            <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium flex items-center justify-center"
+                    :disabled="isLoading">
+              <span v-if="isLoading" class="loader"></span>
+              <span v-else>Login</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Dashboard Page -->
+    <div v-if="currentPage === 'dashboard'" class="container mx-auto px-4 py-4">
+      <nav class="bg-white dark:bg-dark-800 shadow-sm mb-6 border-b border-gray-200 dark:border-dark-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center">
+              <span class="text-xl font-bold text-gray-900 dark:text-white">FFSLikes</span>
+            </div>
+            <div class="flex items-center space-x-4">
+              <button @click="toggleDarkMode" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
+                <i class="fas fa-moon dark:fa-sun"></i>
+              </button>
+              <button @click="logout" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors flex items-center">
+                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <div class="max-w-7xl mx-auto">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-lg overflow-hidden mb-6 border border-gray-200 dark:border-dark-700">
+          <div class="bg-primary-600 dark:bg-primary-800 py-5 px-6">
+            <h2 class="text-white text-xl font-bold">Dashboard</h2>
+            <p class="text-primary-200 text-sm">Welcome back, {{ user.name }}</p>
+          </div>
+          <div class="p-6">
+            <div class="flex items-center mb-6">
+              <img :src="'https://graph.facebook.com/' + user.id + '/picture?width=150&height=150&access_token=' + user.token" 
+                   class="w-16 h-16 rounded-full mr-4 border-2 border-white dark:border-dark-800 shadow">
+              <div>
+                <h3 class="text-lg font-semibold">{{ user.name }}</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm">ID: {{ user.id }}</p>
+                <span class="inline-block bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs px-2.5 py-1 rounded-full font-medium mt-1">ACTIVE</span>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div @click="navigateTo('follow')" class="bg-white dark:bg-dark-700 p-5 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all border border-gray-200 dark:border-dark-600 hover:border-primary-500">
+                <div class="text-primary-600 dark:text-primary-400 mb-3 flex justify-center">
+                  <i class="fas fa-user-plus text-4xl"></i>
+                </div>
+                <h3 class="font-medium text-center">Auto Follower</h3>
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">Grow your audience</p>
+              </div>
+              
+              <div @click="navigateTo('reactions')" class="bg-white dark:bg-dark-700 p-5 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all border border-gray-200 dark:border-dark-600 hover:border-primary-500">
+                <div class="text-primary-600 dark:text-primary-400 mb-3 flex justify-center">
+                  <i class="fas fa-thumbs-up text-4xl"></i>
+                </div>
+                <h3 class="font-medium text-center">Auto Reaction</h3>
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">Boost engagement</p>
+              </div>
+              
+              <div @click="navigateTo('profile')" class="bg-white dark:bg-dark-700 p-5 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all border border-gray-200 dark:border-dark-600 hover:border-primary-500">
+                <div class="text-primary-600 dark:text-primary-400 mb-3 flex justify-center">
+                  <i class="fas fa-shield-alt text-4xl"></i>
+                </div>
+                <h3 class="font-medium text-center">Profile Guard</h3>
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">Profile Guard De/Activator</p>
+              </div>
+              
+              <!--
+              <div @click="logout" class="bg-white dark:bg-dark-700 p-5 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all border border-gray-200 dark:border-dark-600 hover:border-primary-500">
+                <div class="text-primary-600 dark:text-primary-400 mb-3 flex justify-center">
+                  <i class="fas fa-sign-out-alt text-4xl"></i>
+                </div>
+                <h3 class="font-medium text-center">Logout</h3>
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">End session</p>
+              </div>
+              -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Auto Follower Page -->
+    <div v-if="currentPage === 'follow'" class="container mx-auto px-4 py-4">
+      <nav class="bg-white dark:bg-dark-800 shadow-sm mb-6 border-b border-gray-200 dark:border-dark-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center">
+              <button @click="currentPage = 'dashboard'" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mr-4 transition-colors">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <span class="text-xl font-bold">Auto Follower</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-lg overflow-hidden mb-6 border border-gray-200 dark:border-dark-700">
+          <div class="bg-primary-600 dark:bg-primary-800 py-5 px-6">
+            <h2 class="text-white text-xl font-bold">Follower Panel</h2>
+          </div>
+          <div class="p-6">
+            <form @submit.prevent="submitFollowRequest" class="space-y-5">
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Profile URL</label>
+                <input v-model="followForm.link" type="text" required 
+                       class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-400">
+              </div>
+              
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Follower Count</label>
+                <select v-model="followForm.limit" required 
+                        class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                  <option value="5">5 followers</option>
+                  <option value="10">10 followers</option>
+                  <option value="20">20 followers</option>
+                </select>
+              </div>
+              
+              <div class="text-sm text-gray-500 dark:text-gray-400">
+                <p>Note: Profile must use Facebook ID (not nickname)</p>
+              </div>
+              
+              <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium">
+                Start Boost
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Auto Reactions Page -->
+    <div v-if="currentPage === 'reactions'" class="container mx-auto px-4 py-4">
+      <nav class="bg-white dark:bg-dark-800 shadow-sm mb-6 border-b border-gray-200 dark:border-dark-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center">
+              <button @click="currentPage = 'dashboard'" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mr-4 transition-colors">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <span class="text-xl font-bold">Auto Reaction</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-lg overflow-hidden mb-6 border border-gray-200 dark:border-dark-700">
+          <div class="bg-primary-600 dark:bg-primary-800 py-5 px-6">
+            <h2 class="text-white text-xl font-bold">Reaction Panel</h2>
+          </div>
+          <div class="p-6">
+            <form @submit.prevent="submitReactionRequest" class="space-y-5">
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Post URL</label>
+                <input v-model="reactionForm.link" type="text" required 
+                       class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-400">
+              </div>
+              
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Reaction Type</label>
+                <select v-model="reactionForm.type" required 
+                        class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                  <option value="LIKE">👍 Like</option>
+                  <option value="LOVE">❤️ Love</option>
+                  <option value="HAHA">😆 Haha</option>
+                  <option value="WOW">😮 Wow</option>
+                  <option value="SAD">😢 Sad</option>
+                  <option value="ANGRY">😡 Angry</option>
+                </select>
+              </div>
+              
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Reaction Count</label>
+                <select v-model="reactionForm.limit" required 
+                        class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                  <option value="5">5 reactions</option>
+                  <option value="10">10 reactions</option>
+                  <option value="20">20 reactions</option>
+                </select>
+              </div>
+              
+              <div class="text-sm text-gray-500 dark:text-gray-400">
+                <p>Note: Post must be set to PUBLIC visibility</p>
+              </div>
+              
+              <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium">
+                Boost Post
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Profile Guard Page -->
+    <div v-if="currentPage === 'profile'" class="container mx-auto px-4 py-4">
+      <nav class="bg-white dark:bg-dark-800 shadow-sm mb-6 border-b border-gray-200 dark:border-dark-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center">
+              <button @click="currentPage = 'dashboard'" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mr-4 transition-colors">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <span class="text-xl font-bold">Profile Guard</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-lg overflow-hidden mb-6 border border-gray-200 dark:border-dark-700">
+          <div class="bg-primary-600 dark:bg-primary-800 py-5 px-6">
+            <h2 class="text-white text-xl font-bold">Profile Guard Panel</h2>
+          </div>
+          <div class="p-6">
+            <div class="text-center mb-6">
+              <img :src="'https://graph.facebook.com/' + user.id + '/picture?width=150&height=150&access_token=' + user.token" 
+                   class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-white dark:border-dark-800 shadow">
+              <h3 class="text-lg font-semibold">{{ user.name }}</h3>
+              <p class="text-gray-600 dark:text-gray-400 text-sm">ID: {{ user.id }}</p>
+            </div>
+            
+            <div class="text-center mb-6">
+              <h4 class="font-medium text-gray-700 dark:text-gray-300 mb-3">Security Status</h4>
+              <p class="text-gray-500 dark:text-gray-400 text-sm mb-5">
+                Protect your account from unauthorized access and suspicious activity
+              </p>
+              
+              <div class="flex space-x-4 justify-center">
+                <button @click="activateProfileGuard" class="bg-green-600 hover:bg-green-700 text-white py-2.5 px-5 rounded-lg font-medium flex items-center">
+                  <i class="fas fa-shield-alt mr-2"></i> Enable
+                </button>
+                <button @click="deactivateProfileGuard" class="bg-red-600 hover:bg-red-700 text-white py-2.5 px-5 rounded-lg font-medium flex items-center">
+                  <i class="fas fa-shield-virus mr-2"></i> Disable
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Cooldown Page -->
+    <div v-if="currentPage === 'cooldown'" class="container mx-auto px-4 py-4">
+      <nav class="bg-white dark:bg-dark-800 shadow-sm mb-6 border-b border-gray-200 dark:border-dark-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center">
+              <button @click="currentPage = 'dashboard'" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mr-4 transition-colors">
+                <i class="fas fa-arrow-left"></i>
+              </button>
+              <span class="text-xl font-bold">System Cooldown</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-lg overflow-hidden mb-6 border border-gray-200 dark:border-dark-700">
+          <div class="bg-primary-600 dark:bg-primary-800 py-5 px-6">
+            <h2 class="text-white text-xl font-bold">Processing Limit</h2>
+          </div>
+          <div class="p-6 text-center">
+            <div class="text-primary-500 text-6xl mb-5">
+              <i class="fas fa-clock"></i>
+            </div>
+            <h3 class="text-xl font-semibold mb-3">Please Wait</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-6">
+              {{ getCooldownMessage() }}
+            </p>
+            <button @click="currentPage = 'dashboard'" class="bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-5 rounded-lg font-medium">
+              Return to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="pwaInstallModal" class="pwa-install-modal">
+    <div class="pwa-install-card">
+      <div class="pwa-install-header">
+        <div class="pwa-install-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </div>
+        <div>
+          <div class="pwa-install-title">Install FFSLikes</div>
+          <div class="pwa-install-publisher">ffslikes.app</div>
+        </div>
+      </div>
+      <div class="pwa-install-body">
+        <p class="pwa-install-description">This app can be installed on your device. It will work offline and launch like a regular app.</p>
+        <div class="pwa-install-buttons">
+          <button id="pwaInstallCancel" class="pwa-install-button pwa-install-secondary">Not now</button>
+          <button id="pwaInstallConfirm" class="pwa-install-button pwa-install-primary">Install</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="pwaManualInstall" class="pwa-manual-install">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+    Install App
+  </button>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.14/dist/vue.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+	if ('serviceWorker' in navigator) {
+	  window.addEventListener('load', () => {
+	    navigator.serviceWorker.register('/sw.js')
+	      .then(registration => console.log('SW registered:', registration))
+	      .catch(error => console.log('SW registration failed:', error));
+	  });
+	}
+  </script>
+  <script>
+    const { createApp, ref, onMounted } = Vue;
+    
+createApp({
+  setup() {
+    const currentPage = ref('login');
+    const isLoading = ref(false);
+    
+    const user = ref({
+      id: '',
+      name: '',
+      token: '',
+      cookies: ''
+    });
+    
+    const cooldownTime = ref(0);
+    
+    const loginForm = ref({
+      username: '',
+      password: ''
+    });
+    
+    const followForm = ref({
+      link: '',
+      limit: '5'
+    });
+    
+    const reactionForm = ref({
+      link: '',
+      type: 'WOW',
+      limit: '5'
+    });
+    
+    // Dark mode toggle
+    const toggleDarkMode = () => {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
+    };
+    
+    // Cooldown Message
+    const getCooldownMessage = () => {
+      const tool = localStorage.getItem('cooldownTool');
+      const baseMsg = `Please wait for ${cooldownTime.value} minutes before submitting again.`;
+      
+      if (tool === 'follow') {
+        return `Auto Follower tool is cooling down. ${baseMsg}`;
+      } else if (tool === 'reactions') {
+        return `Auto Reactions tool is cooling down. ${baseMsg}`;
+      }
+      return baseMsg;
+    };
+    
+    // Check initial dark mode preference
+    if (localStorage.getItem('darkMode') === 'true' || 
+        (window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem('darkMode'))) {
+      document.documentElement.classList.add('dark');
+    }
+    
+    // Check if user is already logged in
+    onMounted(() => {
+      const token = localStorage.getItem('fb_token');
+      const userId = localStorage.getItem('fb_userId');
+      const userName = localStorage.getItem('fb_userName');
+      const cookies = localStorage.getItem('fb_cookies');
+      
+      if (token && userId && userName) {
+        user.value = {
+          token,
+          id: userId,
+          name: userName,
+          cookies: cookies || ''
+        };
+        currentPage.value = 'dashboard';
+      }
+    });
+    
+    const handleLogin = async () => {
+      try {
+        isLoading.value = true;
+        
+        // Login
+        const response = await axios.post('/api/login', {
+          email: loginForm.value.username,
+          password: loginForm.value.password
+        });
+        
+        if (response.data.success) {
+          // Get user info using the token
+          const userInfo = await axios.get(
+            `https://graph.facebook.com/${response.data.userId}?fields=id,name&access_token=${response.data.accessToken}`
+          );
+          
+          // Save user data
+          user.value = {
+            token: response.data.accessToken,
+            id: response.data.userId,
+            name: userInfo.data.name || 'Facebook User',
+            cookies: response.data.cookies
+          };
+          
+          // Save to localStorage
+          localStorage.setItem('fb_token', response.data.accessToken);
+          localStorage.setItem('fb_userId', response.data.userId);
+          localStorage.setItem('fb_userName', userInfo.data.name || 'Facebook User');
+          localStorage.setItem('fb_cookies', response.data.cookies);
+          
+          // Navigate to dashboard
+          currentPage.value = 'dashboard';
+          
+          Swal.fire({
+            title: 'Success',
+            text: 'Logged in successfully!',
+            icon: 'success',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+          });
+        } else {
+          throw new Error(response.data.error || 'Login failed');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        Swal.fire({
+          title: 'Error',
+          text: error.response?.data?.error || error.message || 'Login failed. Please check your credentials.',
+          icon: 'error',
+          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+        });
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const logout = () => {
+      localStorage.removeItem('fb_token');
+      localStorage.removeItem('fb_userId');
+      localStorage.removeItem('fb_userName');
+      localStorage.removeItem('fb_cookies');
+      currentPage.value = 'login';
+    };
+    
+    const navigateTo = (page) => {
+      currentPage.value = page;
+    };
+    
+    const submitFollowRequest = async () => {
+      try {
+        isLoading.value = true;
+        const response = await axios.post('/api/follow', {
+          userId: user.value.id,
+          link: followForm.value.link,
+          limit: followForm.value.limit
+        });
+        
+        if (response.data.cooldown) {
+          cooldownTime.value = response.data.cooldown;
+          currentPage.value = 'cooldown';
+          localStorage.setItem('cooldownTool', 'follow');
+        } else {
+          Swal.fire({
+            title: 'Success',
+            text: `Successfully sent ${response.data.count} follows`,
+            icon: 'success',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+          });
+        }
+      } catch (error) {
+        if (error.response?.data?.cooldown) {
+          cooldownTime.value = error.response.data.cooldown;
+          currentPage.value = 'cooldown';
+          localStorage.setItem('cooldownTool', 'follow');
+        } else {
+          Swal.fire({
+            title: 'Error',
+            text: error.response?.data?.message || 'Failed to send follows',
+            icon: 'error',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+          });
+        }
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const submitReactionRequest = async () => {
+      try {
+        isLoading.value = true;
+        const response = await axios.post('/api/reactions', {
+          userId: user.value.id,
+          link: reactionForm.value.link,
+          type: reactionForm.value.type,
+          limit: reactionForm.value.limit
+        });
+        
+        if (response.data.cooldown) {
+          cooldownTime.value = response.data.cooldown;
+          currentPage.value = 'cooldown';
+          localStorage.setItem('cooldownTool', 'reactions');
+        } else {
+          Swal.fire({
+            title: 'Success',
+            text: `Successfully sent ${response.data.count} reactions`,
+            icon: 'success',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+          });
+        }
+      } catch (error) {
+        if (error.response?.data?.cooldown) {
+          cooldownTime.value = error.response.data.cooldown;
+          currentPage.value = 'cooldown';
+          localStorage.setItem('cooldownTool', 'reactions');
+        } else {
+          Swal.fire({
+            title: 'Error',
+            text: error.response?.data?.message || 'Failed to send reactions',
+            icon: 'error',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+          });
+        }
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const activateProfileGuard = async () => {
+      try {
+        isLoading.value = true;
+        await axios.post('/api/profile-guard', {
+          userId: user.value.id,
+          token: user.value.token,
+          action: 'activate'
+        });
+        
+        Swal.fire({
+          title: 'Success',
+          text: 'Profile guard activated successfully',
+          icon: 'success',
+          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+        });
+      } catch (error) {
+        Swal.fire({
+          title: 'Error',
+          text: error.response?.data?.message || 'Failed to activate profile guard',
+          icon: 'error',
+          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+        });
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    const deactivateProfileGuard = async () => {
+      try {
+        isLoading.value = true;
+        await axios.post('/api/profile-guard', {
+          userId: user.value.id,
+          token: user.value.token,
+          action: 'deactivate'
+        });
+        
+        Swal.fire({
+          title: 'Success',
+          text: 'Profile guard deactivated successfully',
+          icon: 'success',
+          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+        });
+      } catch (error) {
+        Swal.fire({
+          title: 'Error',
+          text: error.response?.data?.message || 'Failed to deactivate profile guard',
+          icon: 'error',
+          background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+        });
+      } finally {
+        isLoading.value = false;
+      }
+    };
+    
+    return {
+      currentPage,
+      isLoading,
+      user,
+      cooldownTime,
+      loginForm,
+      followForm,
+      reactionForm,
+      toggleDarkMode,
+      handleLogin,
+      logout,
+      navigateTo,
+      submitFollowRequest,
+      submitReactionRequest,
+      activateProfileGuard,
+      deactivateProfileGuard,
+      getCooldownMessage
+    };
+  }
+}).mount('#app');
+
+document.addEventListener('DOMContentLoaded', () => {
+      let deferredPrompt;
+      const pwaInstallModal = document.getElementById('pwaInstallModal');
+      const pwaInstallConfirm = document.getElementById('pwaInstallConfirm');
+      const pwaInstallCancel = document.getElementById('pwaInstallCancel');
+      const pwaManualInstall = document.getElementById('pwaManualInstall');
+
+      // Check if the app is already installed
+      const isRunningAsPWA = window.matchMedia('(display-mode: standalone)').matches;
+      if (isRunningAsPWA) {
+        console.log('App is running as PWA');
+        return;
+      }
+
+      // Listen for beforeinstallprompt event
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        
+        // Show the install modal
+        pwaInstallModal.classList.add('active');
+        
+        // Set a timeout to show the manual install button if the prompt isn't shown
+        setTimeout(() => {
+          if (deferredPrompt) {
+            pwaManualInstall.classList.add('show');
+          }
+        }, 10000);
+      });
+
+      // Install button click handler
+      pwaInstallConfirm.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        
+        pwaInstallModal.classList.remove('active');
+        deferredPrompt.prompt();
+        
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response: ${outcome}`);
+        
+        deferredPrompt = null;
+      });
+
+      // Cancel button handler
+      pwaInstallCancel.addEventListener('click', () => {
+        pwaInstallModal.classList.remove('active');
+      });
+
+      // Manual install button handler
+      pwaManualInstall.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          console.log(`User response: ${outcome}`);
+          
+          if (outcome === 'accepted') {
+            pwaManualInstall.classList.remove('show');
+          }
+        } else {
+          // Fallback instructions
+          Swal.fire({
+            title: 'Install App',
+            text: 'To install this app, look for the "Add to Home Screen" option in your browser\'s menu.',
+            icon: 'info',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg-dark'),
+            color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+          });
+        }
+      });
+
+      // Check if app was successfully installed
+      window.addEventListener('appinstalled', () => {
+        pwaInstallModal.classList.remove('active');
+        pwaManualInstall.classList.remove('show');
+        console.log('PWA was installed');
+      });
+    });
+  </script>
+</body>
+</html>
