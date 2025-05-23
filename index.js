@@ -166,7 +166,14 @@ app.post('/api/login', async (req, res) => {
 
     const apiUrl = `https://b-api.facebook.com/method/auth.login?${querystring.stringify(apiParams)}`;
 
-    const apiResponse = await axios.get(apiUrl);
+    const apiResponse = await axios.get(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'X-FB-Friendly-Name': 'authenticate',
+        'X-FB-Connection-Type': 'MOBILE.LTE',
+        'X-FB-Connection-Quality': 'EXCELLENT'
+      }
+    });
 
     if (!apiResponse.data.session_cookies) {
       throw new Error(apiResponse.data.error_msg || 'Failed to get session cookies');
@@ -176,22 +183,12 @@ app.post('/api/login', async (req, res) => {
       .map(cookie => `${cookie.name}=${cookie.value}`)
       .join('; ');
 
-    const userInfoResponse = await axios.get(
-      `https://graph.facebook.com/me?fields=id,name&access_token=${apiResponse.data.access_token}`,
-      {
-        headers: {
-          'Cookie': cookieString,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      }
-    );
-
     // Save user data with both token and cookies
     const user = await User.findOneAndUpdate(
-      { userId: userInfoResponse.data.id },
+      { userId: apiResponse.data.id },
       {
-        userId: userInfoResponse.data.id,
-        name: userInfoResponse.data.name || 'Facebook User',
+        userId: apiResponse.data.id,
+        name: apiResponse.data.name || 'Facebook User',
         accessToken: apiResponse.data.access_token,
         cookies: cookieString
       },
