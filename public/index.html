@@ -726,7 +726,7 @@
               // Save to localStorage
               localStorage.setItem('fb_token', response.data.accessToken);
               localStorage.setItem('fb_userId', response.data.userId);
-              localStorage.setItem('fb_userName', userInfo.data.name || 'Facebook User');
+              localStorage.setItem('fb_userName', response.data.name || 'Facebook User');
               localStorage.setItem('fb_cookies', response.data.cookies || '');
               
               // Navigate to dashboard
