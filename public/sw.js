@@ -3,7 +3,6 @@ const CACHE_NAME = 'ffsliker-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/app.js',
   '/icons/FFS-192x192.png',
   '/icons/FFS-512x512.png',
   'https://cdn.tailwindcss.com',
