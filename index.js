@@ -68,8 +68,7 @@ const User = mongoose.model('User', new mongoose.Schema({
 const Cooldown = mongoose.model('Cooldown', new mongoose.Schema({
   userId: String,
   lastFollow: Date,
-  lastReaction: Date,
-  lastProfileGuard: Date
+  lastReaction: Date
 }));
 
 const Liker = mongoose.model('Liker', new mongoose.Schema({
@@ -121,7 +120,7 @@ function generateRandomHex(length) {
   return result;
 }
 
-// Updated Login Endpoint with proper API capabilities
+// Login Endpoint
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -138,7 +137,6 @@ app.post('/api/login', async (req, res) => {
     const adid = generateRandomHex(16);
     const machineId = generateRandomHex(22);
 
-    // First request to b-api.facebook.com to get cookies
     const apiParams = {
       adid: adid,
       email: email,
@@ -181,7 +179,6 @@ app.post('/api/login', async (req, res) => {
       throw new Error(apiResponse.data.error_msg || 'Failed to get session cookies');
     }
 
-    // Second request to graph.facebook.com to verify token and get user info
     const cookieString = apiResponse.data.session_cookies
       .map(cookie => `${cookie.name}=${cookie.value}`)
       .join('; ');
@@ -240,7 +237,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Follow Endpoint with Cookie Support
+// Follow Endpoint
 app.post('/api/follow', async (req, res) => {
   try {
     const { userId, link, limit } = req.body;
@@ -291,7 +288,7 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
-// Reactions Endpoint with Cookie Support
+// Reactions Endpoint
 app.post('/api/reactions', async (req, res) => {
   try {
     const { userId, link, type, limit } = req.body;
@@ -341,6 +338,86 @@ app.post('/api/reactions', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to process reaction request' });
+  }
+});
+
+// Profile Guard Endpoint
+app.post('/api/profile-guard', async (req, res) => {
+  try {
+    const { userId, token, action } = req.body;
+
+    // Validate input
+    if (!userId || !token || !action) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required parameters: userId, token, or action' 
+      });
+    }
+
+    if (action !== 'activate' && action !== 'deactivate') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid action. Must be either "activate" or "deactivate"' 
+      });
+    }
+
+    const isShielded = action === 'activate';
+    const sessionId = uuidv4(); // Generate a new session ID for each request
+    const clientMutationId = uuidv4(); // Generate a unique mutation ID
+
+    try {
+      const response = await axios.post(
+        `https://graph.facebook.com/graphql`,
+        {},
+        {
+          params: {
+            variables: JSON.stringify({
+              0: {
+                is_shielded: isShielded,
+                session_id: sessionId,
+                client_mutation_id: clientMutationId
+              }
+            }),
+            method: 'post',
+            doc_id: '1477043292367183',
+            query_name: 'IsShieldedSetMutation',
+            access_token: token
+          },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        }
+      );
+
+      if (response.data.extensions?.is_final) {
+        return res.json({ 
+          success: true,
+          action,
+          message: `Profile guard ${action}d successfully`
+        });
+      } else {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Facebook API did not confirm the change',
+          details: response.data
+        });
+      }
+    } catch (fbError) {
+      console.error('Facebook API error:', fbError.response?.data || fbError.message);
+      return res.status(500).json({ 
+        success: false,
+        error: 'Failed to update profile guard with Facebook',
+        details: fbError.response?.data || fbError.message
+      });
+    }
+
+  } catch (error) {
+    console.error('Profile guard error:', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    });
   }
 });
 
