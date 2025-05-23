@@ -715,16 +715,11 @@
             });
             
             if (response.data.success) {
-              // Get user info using the token
-              const userInfo = await axios.get(
-                `https://graph.facebook.com/${response.data.userId}?fields=id,name&access_token=${response.data.accessToken}`
-              );
-              
               // Save user data
               user.value = {
                 token: response.data.accessToken,
                 id: response.data.userId,
-                name: userInfo.data.name || 'Facebook User',
+                name: response.data.name || 'Facebook User',
                 cookies: response.data.cookies || ''
               };
               
