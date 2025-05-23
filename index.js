@@ -328,7 +328,7 @@ app.post('/api/reactions', async (req, res) => {
 });
 
 // Serve frontend
-app.get('*', (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
