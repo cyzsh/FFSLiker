@@ -23,12 +23,24 @@ app.use(limiter);
 app.set('trust proxy', 1);
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/?retryWrites=true&w=majority&appName=ffsliker', {
-  ssl: true,
-  tlsAllowInvalidCertificates: false // Only set to true for testing if absolutely necessary
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority', {
+      ssl: true,
+      sslValidate: true,
+      tlsAllowInvalidCertificates: false,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000
+    });
+    console.log('MongoDB Connected Successfully');
+  } catch (err) {
+    console.error('MongoDB Connection Error:', err);
+    process.exit(1);
+  }
+};
+
+connectDB();
 
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
