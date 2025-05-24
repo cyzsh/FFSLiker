@@ -358,6 +358,14 @@
                 <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">Boost engagement</p>
               </div>
               
+              <div @click="navigateTo('share')" class="bg-white dark:bg-dark-700 p-5 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all border border-gray-200 dark:border-dark-600 hover:border-primary-500">
+                <div class="text-primary-600 dark:text-primary-400 mb-3 flex justify-center">
+                  <i class="fas fa-share text-4xl"></i>
+                </div>
+                <h3 class="font-medium text-center">Auto Share</h3>
+                <p class="text-gray-500 dark:text-gray-400 text-sm text-center mt-1">Boost engagement</p>
+              </div>
+              
               <div @click="navigateTo('profile')" class="bg-white dark:bg-dark-700 p-5 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all border border-gray-200 dark:border-dark-600 hover:border-primary-500">
                 <div class="text-primary-600 dark:text-primary-400 mb-3 flex justify-center">
                   <i class="fas fa-shield-alt text-4xl"></i>
@@ -483,6 +491,61 @@
                       :disabled="isLoading">
                 <span v-if="isLoading" class="loader"></span>
                 <span v-else>Start React</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Auto Share Page -->
+    <div v-if="currentPage === 'share'" class="container mx-auto px-4 py-4">
+      <nav class="bg-white dark:bg-dark-800 shadow-sm mb-6 border-b border-gray-200 dark:border-dark-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center">
+              <button @click="currentPage = 'dashboard'" class="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mr-4 transition-colors">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <span class="text-xl font-bold">Auto Share</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-lg overflow-hidden mb-6 border border-gray-200 dark:border-dark-700">
+          <div class="bg-primary-600 dark:bg-primary-800 py-5 px-6">
+            <h2 class="text-white text-xl font-bold">Share Panel</h2>
+          </div>
+          <div class="p-6">
+            <form @submit.prevent="submitShareRequest" class="space-y-5">
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Post URL</label>
+                <input v-model="shareForm.link" type="text" required 
+                       class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-400">
+              </div>
+              
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Delay (seconds)</label>
+                <input v-model="shareForm.delay" type="text" required 
+                       class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-400">
+              </div>
+              
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 font-medium mb-2">Share Count</label>
+                <input v-model="shareForm.limit" type="text" required 
+                       class="w-full px-4 py-2.5 bg-white dark:bg-dark-700 border border-gray-300 dark:border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-400">
+              </div>
+              
+              <div class="text-sm text-gray-500 dark:text-gray-400">
+                <p>Note: Post must be set to PUBLIC visibility. Proceed with caution</p>
+              </div>
+              
+              <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium flex items-center justify-center"
+                      :disabled="isLoading">
+                <span v-if="isLoading" class="loader"></span>
+                <span v-else>Start Share</span>
               </button>
             </form>
           </div>
@@ -653,6 +716,12 @@
           link: '',
           type: 'WOW',
           limit: '5'
+        });
+        
+        const shareForm = ref({
+          link: '',
+          delay: '5',
+          limit: '100'
         });
         
         // Dark mode toggle
@@ -855,6 +924,38 @@
           }
         };
         
+        const submitShareRequest = async () => {
+          try {
+            isLoading.value = true;
+            const response = await axios.post('/api/share', {
+              userId: user.value.id,
+              token: user.value.token,
+              cookie: user.value.cookie,
+              link: shareForm.value.link,
+              delay: shareForm.value.delay,
+              limit: shareForm.value.limit
+            });
+            
+              Swal.fire({
+                title: 'Success',
+                text: `Successfully sent ${response.data.count} shares`,
+                icon: 'success',
+                background: isDarkMode.value ? '#1e293b' : '#ffffff',
+                color: isDarkMode.value ? '#ffffff' : '#000000'
+              });
+          } catch (error) {
+              Swal.fire({
+                title: 'Error',
+                text: error.response?.data?.message || 'Failed to send shares',
+                icon: 'error',
+                background: isDarkMode.value ? '#1e293b' : '#ffffff',
+                color: isDarkMode.value ? '#ffffff' : '#000000'
+              });
+          } finally {
+            isLoading.value = false;
+          }
+        };
+        
         const activateProfileGuard = async () => {
           try {
             isLoading.value = true;
@@ -922,12 +1023,14 @@
           loginForm,
           followForm,
           reactionForm,
+          shareForm,
           toggleDarkMode,
           handleLogin,
           logout,
           navigateTo,
           submitFollowRequest,
           submitReactionRequest,
+          submitShareRequest,
           activateProfileGuard,
           deactivateProfileGuard,
           getCooldownMessage
