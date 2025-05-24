@@ -930,7 +930,7 @@
             const response = await axios.post('/api/share', {
               userId: user.value.id,
               token: user.value.token,
-              cookie: user.value.cookie,
+              cookie: user.value.cookies,
               link: shareForm.value.link,
               delay: shareForm.value.delay,
               limit: shareForm.value.limit
