@@ -202,7 +202,34 @@ const checkCooldown = async (userId, toolType) => {
 
 };
 
+function extractPostID(url) {
+  if (/^[\d]+_[a-zA-Z0-9]+$/.test(url)) return url;
 
+  const uidPattern = /facebook\.com\/([0-9]+)(?:\/|$)/i;
+  const uidMatch = url.match(uidPattern);
+  const uid = uidMatch ? uidMatch[1] : null;
+
+  const postPatterns = [
+    /facebook\.com\/(?:[^\/]+\/)?(?:posts|photos|activity|questions|notes|media|permalink\.php|groups\/[^\/]+\/permalink\/[^\/]+)\/(pfbid[a-zA-Z0-9]+)/i,
+    /facebook\.com\/(?:[^\/]+\/)?(?:posts|photos|activity|questions|notes|media)\/(pfbid[a-zA-Z0-9]+)/i,
+    /facebook\.com\/photo(?:s|\.php)\?(?:.*&)?(?:fbid|id)=(pfbid[a-zA-Z0-9]+)/i,
+    /facebook\.com\/[^\/]+\/(?:posts|photos|activity|questions|notes|media)\/(pfbid[a-zA-Z0-9]+)/i
+  ];
+
+  let postId = null;
+  for (const pattern of postPatterns) {
+    const match = url.match(pattern);
+    if (match) {
+      postId = match[1];
+      break;
+    }
+  }
+
+  if (uid && postId) {
+    return `${uid}_${postId}`;
+  }
+  return postId || null;
+}
 
 async function extractID(url) {
   try {
@@ -580,7 +607,7 @@ app.post('/api/reactions', async (req, res) => {
     }
 
     // First validate the URL and extract ID
-    const postId = await extractID(link);
+    const postId = extractPostID(link);
     if (!postId) {
       return res.status(400).json({ 
         success: false,
