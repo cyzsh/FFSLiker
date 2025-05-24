@@ -655,6 +655,79 @@ app.post('/api/reactions', async (req, res) => {
   }
 });
 
+// Share Endpoint
+
+app.post('/api/share', async (req, res) => {
+  try {
+    const { userId, token, cookie, link, delay = 1000, limit = 10 } = req.body;
+
+    if (!userId || !token || !cookie || !link) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required parameters: userId, token, cookie, or link' 
+      });
+    }
+
+    // Validate the URL and extract ID
+    const postId = await extractID(link);
+    if (!postId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid Facebook post link or unable to extract ID' 
+      });
+    }
+
+    let successCount = 0;
+    const delaySec = parseInt(delay * 1000);
+    const shareLimit = parseInt(limit);
+
+    // Share multiple times with delay
+    for (let i = 0; i < shareLimit; i++) {
+      try {
+        const headers = {
+          "Authority": "graph.facebook.com",
+          "Accept": "*/*",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cookie": cookie,
+          "Referer": "https://www.facebook.com/",
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        };
+
+        const response = await axios.post(
+          `https://graph.facebook.com/me/feed?link=https://m.facebook.com/${postId}&published=0&access_token=${token}`,
+          null,
+          { headers }
+        );
+
+        if (response.status === 200) {
+          successCount++;
+        }
+
+        // Add delay between shares if not the last iteration
+        if (i < shareLimit - 1) {
+          await new Promise(resolve => setTimeout(resolve, delaySec));
+        }
+      } catch (error) {
+        console.error(`Share attempt ${i + 1} failed:`, error.message);
+      }
+    }
+
+    res.json({ 
+      success: true,
+      count: successCount,
+      totalAttempted: shareLimit
+    });
+
+  } catch (error) {
+    console.error('Share endpoint error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: `${error.response?.data?.error?.message || error.message}`,
+      details: error.message 
+    });
+  }
+});
+
 
 // Profile Guard Endpoint
 
