@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <style>
+  <style>    
     .loader {
       border: 3px solid rgba(255, 255, 255, 0.3);
       border-top: 3px solid #0ea5e9;
@@ -410,13 +410,13 @@
               </div>
               
               <div class="text-sm text-gray-500 dark:text-gray-400">
-                <p>Note: Profile must use Facebook ID (not nickname)</p>
+                <p>Note: Profile must be PUBLIC (not locked)</p>
               </div>
               
               <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium flex items-center justify-center"
                       :disabled="isLoading">
                 <span v-if="isLoading" class="loader"></span>
-                <span v-else>Start Boost</span>
+                <span v-else>Start Follow</span>
               </button>
             </form>
           </div>
@@ -482,7 +482,7 @@
               <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white py-2.5 px-4 rounded-lg font-medium flex items-center justify-center"
                       :disabled="isLoading">
                 <span v-if="isLoading" class="loader"></span>
-                <span v-else>Boost Post</span>
+                <span v-else>Start React</span>
               </button>
             </form>
           </div>
@@ -609,8 +609,8 @@
     Install App
   </button>
 
-  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.14/dist/vue.global.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script rel="preload" src="https://cdn.jsdelivr.net/npm/vue@3.5.14/dist/vue.global.min.js"></script>
+  <script rel="preload" src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
 	  window.addEventListener('load', () => {
@@ -776,7 +776,6 @@
           try {
             isLoading.value = true;
             const response = await axios.post('/api/follow', {
-              userId: user.value.id,
               link: followForm.value.link,
               limit: followForm.value.limit
             });
@@ -817,7 +816,6 @@
           try {
             isLoading.value = true;
             const response = await axios.post('/api/reactions', {
-              userId: user.value.id,
               link: reactionForm.value.link,
               type: reactionForm.value.type,
               limit: reactionForm.value.limit
