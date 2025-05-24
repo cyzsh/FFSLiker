@@ -250,12 +250,12 @@ app.post('/api/login', async (req, res) => {
 // Follow Endpoint
 app.post('/api/follow', async (req, res) => {
   try {
-    const { userId, link, limit } = req.body;
+    const { link, limit } = req.body;
 
-    if (!userId || !link || !limit) {
+    if (!link || !limit) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required parameters: userId, link, or limit' 
+        error: 'Missing required parameters: link, or limit' 
       });
     }
 
@@ -336,12 +336,12 @@ app.post('/api/follow', async (req, res) => {
 // Reactions Endpoint
 app.post('/api/reactions', async (req, res) => {
   try {
-    const { userId, link, type, limit } = req.body;
+    const { link, type, limit } = req.body;
 
-    if (!userId || !link || !type || !limit) {
+    if (!link || !type || !limit) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required parameters: userId, link, type, or limit' 
+        error: 'Missing required parameters: link, type, or limit' 
       });
     }
 
