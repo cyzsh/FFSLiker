@@ -101,15 +101,24 @@ const checkCooldown = async (userId, toolType) => {
   return false;
 };
 
-const extractPostId = (url) => {
-  const matches = url.match(/\/(\d+)\/posts\/(\d+)/) || url.match(/fbid=(\d+)/);
-  return matches ? matches[1] || matches[2] : null;
-};
-
-const extractProfileId = (url) => {
-  const matches = url.match(/facebook\.com\/(\d+)/) || url.match(/profile\.php\?id=(\d+)/);
-  return matches ? matches[1] : null;
-};
+async function extractID(url) {
+  try {
+    const response = await axios.post(
+      "https://id.traodoisub.com/api.php",
+      new URLSearchParams({ link: url }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+        }
+      }
+    );
+    return response.data.id || null;
+  } catch (error) {
+    console.error("Error getting post ID:", error.message);
+    return null;
+  }
+}
 
 function generateRandomHex(length) {
   const chars = '0123456789abcdef';
@@ -243,21 +252,45 @@ app.post('/api/follow', async (req, res) => {
   try {
     const { userId, link, limit } = req.body;
 
+    if (!userId || !link || !limit) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required parameters: userId, link, or limit' 
+      });
+    }
+
+    // First validate the URL and extract ID
+    const profileId = await extractID(link);
+    if (!profileId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid Facebook profile link or unable to extract ID' 
+      });
+    }
+
+    // Only check cooldown after successful ID extraction
     const cooldown = await checkCooldown(userId, 'lastFollow');
     if (cooldown) {
-      return res.status(429).json({ cooldown, tool: 'follow' });
+      return res.status(429).json({ 
+        success: false,
+        cooldown, 
+        tool: 'follow',
+        message: `Please wait ${cooldown} more minutes before following again`
+      });
     }
 
-    const profileId = extractProfileId(link);
-    if (!profileId) {
-      return res.status(400).json({ message: 'Invalid Facebook profile link' });
-    }
-
-    // Get random likers with their cookies
+    // Get random active likers
     const likers = await Liker.aggregate([
       { $match: { active: true } },
       { $sample: { size: parseInt(limit) } }
     ]);
+
+    if (!likers || likers.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'No active likers available' 
+      });
+    }
 
     let successCount = 0;
     const promises = likers.map(async (liker) => {
@@ -274,18 +307,29 @@ app.post('/api/follow', async (req, res) => {
           { headers }
         );
 
-        if (response.status === 200) successCount++;
+        if (response.status === 200) {
+          successCount++;
+        }
       } catch (error) {
-        console.error(`Failed to follow with token ${liker.accessToken.substring(0, 10)}...`);
+        console.error(`Follow failed for user ${liker.userId}:`, error.message);
       }
     });
 
     await Promise.all(promises);
 
-    res.json({ count: successCount });
+    res.json({ 
+      success: true,
+      count: successCount,
+      totalAttempted: likers.length
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to process follow request' });
+    console.error('Follow endpoint error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      details: error.message 
+    });
   }
 });
 
@@ -294,21 +338,45 @@ app.post('/api/reactions', async (req, res) => {
   try {
     const { userId, link, type, limit } = req.body;
 
+    if (!userId || !link || !type || !limit) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required parameters: userId, link, type, or limit' 
+      });
+    }
+
+    // First validate the URL and extract ID
+    const postId = await extractID(link);
+    if (!postId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid Facebook post link or unable to extract ID' 
+      });
+    }
+
+    // Only check cooldown after successful ID extraction
     const cooldown = await checkCooldown(userId, 'lastReaction');
     if (cooldown) {
-      return res.status(429).json({ cooldown, tool: 'reactions' });
+      return res.status(429).json({ 
+        success: false,
+        cooldown, 
+        tool: 'reactions',
+        message: `Please wait ${cooldown} more minutes before reacting again`
+      });
     }
 
-    const postId = extractPostId(link);
-    if (!postId) {
-      return res.status(400).json({ message: 'Invalid Facebook post link' });
-    }
-
-    // Get random likers with their cookies
+    // Get random active likers
     const likers = await Liker.aggregate([
       { $match: { active: true } },
       { $sample: { size: parseInt(limit) } }
     ]);
+
+    if (!likers || likers.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'No active likers available' 
+      });
+    }
 
     let successCount = 0;
     const promises = likers.map(async (liker) => {
@@ -327,18 +395,29 @@ app.post('/api/reactions', async (req, res) => {
           }
         );
 
-        if (response.status === 200) successCount++;
+        if (response.status === 200) {
+          successCount++;
+        }
       } catch (error) {
-        console.error(`Failed to react with token ${liker.accessToken.substring(0, 10)}...`);
+        console.error(`Reaction failed for user ${liker.userId}:`, error.message);
       }
     });
 
     await Promise.all(promises);
 
-    res.json({ count: successCount });
+    res.json({ 
+      success: true,
+      count: successCount,
+      totalAttempted: likers.length
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to process reaction request' });
+    console.error('Reactions endpoint error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      details: error.message 
+    });
   }
 });
 
