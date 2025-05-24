@@ -776,6 +776,7 @@
           try {
             isLoading.value = true;
             const response = await axios.post('/api/follow', {
+              userId: user.value.id,
               link: followForm.value.link,
               limit: followForm.value.limit
             });
@@ -816,6 +817,7 @@
           try {
             isLoading.value = true;
             const response = await axios.post('/api/reactions', {
+              userId: user.value.id,
               link: reactionForm.value.link,
               type: reactionForm.value.type,
               limit: reactionForm.value.limit
