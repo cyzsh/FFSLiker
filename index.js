@@ -12,27 +12,67 @@ const MongoStore = require('connect-mongo');
 const app = express();
 const PORT = process.env.PORT || 11000;
 
+// Validate environment variables at startup
+function validateEnv() {
+  const requiredVars = ['MONGODB_URI'];
+  for (const varName of requiredVars) {
+    if (!process.env[varName]) {
+      console.error(`❌ Missing required environment variable: ${varName}`);
+      process.exit(1);
+    }
+  }
+
+  // Validate encryption key length
+  if (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length !== 64) {
+    console.error('❌ ENCRYPTION_KEY must be 64-character hex string (32 bytes)');
+    process.exit(1);
+  }
+}
+
+validateEnv();
+
 // Encryption configuration
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 const IV_LENGTH = 16;
 
+// Helper function to ensure proper key length
+function getValidKey(key) {
+  if (key.length === 64 && /^[0-9a-f]+$/i.test(key)) {
+    return Buffer.from(key, 'hex');
+  }
+  // If key isn't proper hex or wrong length, hash it to get proper length
+  return crypto.createHash('sha256').update(key).digest();
+}
+
 // Encryption functions
 function encrypt(text) {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+  try {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const key = getValidKey(ENCRYPTION_KEY);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  } catch (error) {
+    console.error('Encryption error:', error);
+    throw new Error('Encryption failed');
+  }
 }
 
 function decrypt(text) {
-  const textParts = text.split(':');
-  const iv = Buffer.from(textParts.shift(), 'hex');
-  const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
-  let decrypted = decipher.update(encryptedText);
-  decrypted = Buffer.concat([decrypted, decipher.final()]);
-  return decrypted.toString();
+  try {
+    const textParts = text.split(':');
+    const iv = Buffer.from(textParts.shift(), 'hex');
+    const encryptedText = textParts.join(':');
+    const key = getValidKey(ENCRYPTION_KEY);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Decryption failed');
+  }
 }
 
 // Middleware
@@ -49,7 +89,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
-    mongoUrl: "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority",
+    mongoUrl: process.env.MONGODB_URI,
     ttl: 14 * 24 * 60 * 60, // 14 days
     autoRemove: 'native',
     crypto: {
@@ -73,7 +113,7 @@ app.use(limiter);
 app.set('trust proxy', 1);
 
 // Database connection
-const MONGODB_URI = "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority";
 
 async function connectDB() {
   try {
@@ -104,7 +144,7 @@ mongoose.connection.on('error', (err) => {
 
 connectDB();
 
-// Models
+// Models (remain the same as before)
 const UserSchema = new mongoose.Schema({
   userId: { type: String, unique: true },
   name: String,
@@ -139,7 +179,7 @@ const Liker = mongoose.model('Liker', new mongoose.Schema({
   active: { type: Boolean, default: false }
 }));
 
-// Helper functions
+// Helper functions (remain the same as before)
 const checkCooldown = async (userId, toolType) => {
   const cooldown = await Cooldown.findOne({ userId });
   const now = new Date();
@@ -248,7 +288,7 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Check session endpoint
+// Routes (remain the same as before)
 app.get('/api/session', authenticate, (req, res) => {
   res.json({ 
     success: true, 
@@ -261,7 +301,6 @@ app.get('/api/session', authenticate, (req, res) => {
   });
 });
 
-// Login Endpoint
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -407,7 +446,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Logout Endpoint
 app.post('/api/logout', authenticate, async (req, res) => {
   try {
     // Clear session
@@ -421,7 +459,6 @@ app.post('/api/logout', authenticate, async (req, res) => {
   }
 });
 
-// Follow Endpoint
 app.post('/api/follow', authenticate, async (req, res) => {
   try {
     const { link, limit } = req.body;
@@ -504,7 +541,6 @@ app.post('/api/follow', authenticate, async (req, res) => {
   }
 });
 
-// Reactions Endpoint
 app.post('/api/reactions', authenticate, async (req, res) => {
   try {
     const { link, type, limit } = req.body;
@@ -589,7 +625,6 @@ app.post('/api/reactions', authenticate, async (req, res) => {
   }
 });
 
-// Share Endpoint
 app.post('/api/share', authenticate, async (req, res) => {
   try {
     const { link, delay = 1000, limit = 10 } = req.body;
@@ -671,7 +706,6 @@ app.post('/api/share', authenticate, async (req, res) => {
   }
 });
 
-// Profile Guard Endpoint
 app.post('/api/profile-guard', authenticate, async (req, res) => {
   try {
     const { action } = req.body;
