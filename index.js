@@ -1,205 +1,164 @@
 const express = require('express');
-
 const mongoose = require('mongoose');
-
 const axios = require('axios');
-
 const cors = require('cors');
-
 const rateLimit = require('express-rate-limit');
-
 const { v4: uuidv4 } = require('uuid');
-
 const querystring = require('querystring');
-
-
+const crypto = require('crypto');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 
 const app = express();
-
 const PORT = process.env.PORT || 11000;
 
+// Encryption configuration
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+const IV_LENGTH = 16;
 
-
-// Middleware
-
-app.use(cors());
-
-app.use(express.json());
-
-app.use(express.static('public'));
-
-
-
-// Rate limiting
-
-const limiter = rateLimit({
-
-  windowMs: 15 * 60 * 1000,
-
-  max: 100
-
-});
-
-app.use(limiter);
-
-
-
-app.set('trust proxy', 1);
-
-
-
-// Database connection
-
-const MONGODB_URI = "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority";
-
-
-
-async function connectDB() {
-
-  try {
-
-    await mongoose.connect(MONGODB_URI, {
-
-      ssl: true,
-
-      tlsAllowInvalidCertificates: false,
-
-      connectTimeoutMS: 10000,
-
-      socketTimeoutMS: 45000,
-
-      serverSelectionTimeoutMS: 5000,
-
-      retryWrites: true,
-
-      retryReads: true,
-
-      directConnection: false
-
-    });
-
-    console.log("✅ MongoDB Connected!");
-
-  } catch (err) {
-
-    console.error("❌ MongoDB Connection Error:", err.message);
-
-    process.exit(1);
-
-  }
-
+// Encryption functions
+function encrypt(text) {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
+function decrypt(text) {
+  const textParts = text.split(':');
+  const iv = Buffer.from(textParts.shift(), 'hex');
+  const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+}
 
+// Middleware
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+app.use(express.json());
+app.use(express.static('public'));
 
-// Handle connection events
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(64).toString('hex'),
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority",
+    ttl: 14 * 24 * 60 * 60, // 14 days
+    autoRemove: 'native',
+    crypto: {
+      secret: process.env.STORE_SECRET || crypto.randomBytes(32).toString('hex')
+    }
+  }),
+  cookie: {
+    maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+  }
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100
+});
+app.use(limiter);
+app.set('trust proxy', 1);
+
+// Database connection
+const MONGODB_URI = "mongodb+srv://zishindev:I352MfK5GcFsZDIw@ffsliker.j9iepam.mongodb.net/ffsliker?retryWrites=true&w=majority";
+
+async function connectDB() {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      ssl: true,
+      tlsAllowInvalidCertificates: false,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 5000,
+      retryWrites: true,
+      retryReads: true,
+      directConnection: false
+    });
+    console.log("✅ MongoDB Connected!");
+  } catch (err) {
+    console.error("❌ MongoDB Connection Error:", err.message);
+    process.exit(1);
+  }
+}
 
 mongoose.connection.on('connected', () => {
-
   console.log('Mongoose connected to DB cluster');
-
 });
-
-
 
 mongoose.connection.on('error', (err) => {
-
   console.error('Mongoose connection error:', err);
-
 });
-
-
 
 connectDB();
 
-
-
 // Models
-
-const User = mongoose.model('User', new mongoose.Schema({
-
-  userId: String,
-
+const UserSchema = new mongoose.Schema({
+  userId: { type: String, unique: true },
   name: String,
-
   accessToken: String,
-
   cookies: String,
+  deviceId: String,
+  machineId: String,
+  sessionToken: String,
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now },
+  lastLogin: Date
+});
 
-  createdAt: { type: Date, default: Date.now }
+UserSchema.methods.rotateSession = function() {
+  this.sessionToken = uuidv4();
+  return this.sessionToken;
+};
 
-}));
-
-
+const User = mongoose.model('User', UserSchema);
 
 const Cooldown = mongoose.model('Cooldown', new mongoose.Schema({
-
   userId: String,
-
   lastFollow: Date,
-
   lastReaction: Date
-
 }));
-
-
 
 const Liker = mongoose.model('Liker', new mongoose.Schema({
-
   userId: String,
-
   name: String,
-
   accessToken: String,
-
   cookies: String,
-
   active: { type: Boolean, default: false }
-
 }));
 
-
-
 // Helper functions
-
 const checkCooldown = async (userId, toolType) => {
-
   const cooldown = await Cooldown.findOne({ userId });
-
   const now = new Date();
-
   const cooldownMinutes = 20;
-
   
-
   if (!cooldown) {
-
     await Cooldown.create({ userId, [toolType]: now });
-
     return false;
-
   }
-
-
 
   const lastUsed = new Date(cooldown[toolType]) || new Date(0);
-
   const diffMinutes = (now - lastUsed) / (1000 * 60);
 
-
-
   if (diffMinutes < cooldownMinutes) {
-
     return Math.ceil(cooldownMinutes - diffMinutes);
-
   }
 
-
-
   await Cooldown.updateOne({ userId }, { [toolType]: now });
-
   return false;
-
 };
 
 function extractPostID(url) {
@@ -250,275 +209,230 @@ async function extractID(url) {
   }
 }
 
-
 function generateRandomHex(length) {
-
   const chars = '0123456789abcdef';
-
   let result = '';
-
   for (let i = 0; i < length; i++) {
-
     result += chars.charAt(Math.floor(Math.random() * chars.length));
-
   }
-
   return result;
-
 }
 
+// Authentication middleware
+const authenticate = async (req, res, next) => {
+  try {
+    if (req.session.userId) {
+      const user = await User.findOne({ userId: req.session.userId });
+      if (user && user.isActive) {
+        req.user = user;
+        return next();
+      }
+    }
+    
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      const token = authHeader.split(' ')[1];
+      const decryptedToken = decrypt(token);
+      const user = await User.findOne({ sessionToken: decryptedToken });
+      if (user && user.isActive) {
+        req.session.userId = user.userId;
+        req.user = user;
+        return next();
+      }
+    }
+    
+    res.status(401).json({ success: false, error: 'Unauthorized' });
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(500).json({ success: false, error: 'Authentication failed' });
+  }
+};
 
+// Check session endpoint
+app.get('/api/session', authenticate, (req, res) => {
+  res.json({ 
+    success: true, 
+    user: {
+      id: req.user.userId,
+      name: req.user.name,
+      token: req.user.accessToken,
+      cookies: req.user.cookies
+    }
+  });
+});
 
 // Login Endpoint
-
 app.post('/api/login', async (req, res) => {
-
   try {
-
     const { email, password } = req.body;
 
-
-
     if (!email || !password) {
-
       return res.status(400).json({
-
         success: false,
-
         error: 'Both email and password are required'
-
       });
-
     }
 
-
-
     // Generate device info
-
     const deviceId = uuidv4();
-
     const adid = generateRandomHex(16);
-
     const machineId = generateRandomHex(22);
 
-
-
     const apiParams = {
-
       adid: adid,
-
       email: email,
-
       password: password,
-
       format: 'json',
-
       device_id: deviceId,
-
       cpl: 'true',
-
       family_device_id: deviceId,
-
       locale: 'en_US',
-
       client_country_code: 'US',
-
       credentials_type: 'device_based_login_password',
-
       generate_session_cookies: '1',
-
       generate_analytics_claim: '1',
-
       generate_machine_id: '1',
-
       currently_logged_in_userid: '0',
-
       irisSeqID: '1',
-
       try_num: '1',
-
       enroll_misauth: 'false',
-
       meta_inf_fbmeta: 'NO_FILE',
-
       source: 'login',
-
       machine_id: machineId,
-
       fb_api_req_friendly_name: 'authenticate',
-
       fb_api_caller_class: 'com.facebook.account.login.protocol.Fb4aAuthHandler',
-
       api_key: '882a8490361da98702bf97a021ddc14d',
-
       access_token: '350685531728|62f8ce9f74b12f84c123cc23437a4a32'
-
     };
-
-
 
     const apiUrl = `https://b-api.facebook.com/method/auth.login?${querystring.stringify(apiParams)}`;
 
-
-
     const apiResponse = await axios.get(apiUrl, {
-
       headers: {
-
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-
         'X-FB-Friendly-Name': 'authenticate',
-
         'X-FB-Connection-Type': 'MOBILE.LTE',
-
         'X-FB-Connection-Quality': 'EXCELLENT'
-
       }
-
     });
-
-
 
     if (!apiResponse.data.session_cookies) {
-
       throw new Error(apiResponse.data.error_msg || 'Failed to get session cookies');
-
     }
 
-
-
     const cookieString = apiResponse.data.session_cookies
-
       .map(cookie => `${cookie.name}=${cookie.value}`)
-
       .join('; ');
-
       
-
     const userName = await axios.get(
-
       `https://graph.facebook.com/me?fields=name&access_token=${apiResponse.data.access_token}`,
-
       {
-
         headers: {
-
           'Cookie': cookieString,
-
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-
         }
-
       }
-
     );
 
-
-
-    // Save user data with both token and cookies
-
-    const user = await User.findOneAndUpdate(
-
-      { userId: apiResponse.data.uid },
-
-      {
-
-        userId: apiResponse.data.uid,
-
-        name: userName.data.name || 'Facebook User',
-
-        accessToken: apiResponse.data.access_token,
-
-        cookies: cookieString
-
-      },
-
-      { upsert: true, new: true }
-
-    );
-
-
-
-    // Also save as a liker
-
-    await Liker.findOneAndUpdate(
-
-      { userId: apiResponse.data.uid },
-
-      {
-
-        userId: apiResponse.data.uid,
-
-        name: userName.data.name || 'Facebook User',
-
-        accessToken: apiResponse.data.access_token,
-
-        cookies: cookieString,
-
-        active: true
-
-      },
-
-      { upsert: true, new: true }
-
-    );
-
-
-
-    return res.json({
-
-      success: true,
-
-      userId: apiResponse.data.uid,
-
-      name: userName.data.name,
-
-      accessToken: apiResponse.data.access_token,
-
-      cookies: cookieString
-
-    });
-
-
-
-  } catch (error) {
-
-    console.error('Login error:', error.response?.data || error.message);
-
-    return res.status(500).json({
-
-      success: false,
-
-      error: error.response?.data?.error?.message || 
-
-            error.response?.data?.error_msg || 
-
-            error.message ||
-
-            'Login failed. Please check your credentials.'
-
-    });
-
-  }
-
-});
-
-
-
-// Follow Endpoint
-
-app.post('/api/follow', async (req, res) => {
-  try {
-    const { userId, link, limit } = req.body;
-
-    if (!userId || !link || !limit) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Missing required parameters: userId, link, or limit' 
+    // Check if user exists and is active
+    const existingUser = await User.findOne({ userId: apiResponse.data.uid });
+    if (existingUser && existingUser.isActive) {
+      // Rotate session token for existing user
+      const sessionToken = existingUser.rotateSession();
+      await existingUser.save();
+      
+      req.session.userId = existingUser.userId;
+      
+      return res.json({
+        success: true,
+        userId: existingUser.userId,
+        name: existingUser.name,
+        accessToken: existingUser.accessToken,
+        cookies: existingUser.cookies,
+        sessionToken: encrypt(sessionToken)
       });
     }
 
-    // First validate the URL and extract ID
+    // Create new user or update existing inactive user
+    const user = await User.findOneAndUpdate(
+      { userId: apiResponse.data.uid },
+      {
+        userId: apiResponse.data.uid,
+        name: userName.data.name || 'Facebook User',
+        accessToken: apiResponse.data.access_token,
+        cookies: cookieString,
+        deviceId,
+        machineId,
+        sessionToken: uuidv4(),
+        isActive: true,
+        lastLogin: new Date()
+      },
+      { upsert: true, new: true }
+    );
+
+    // Also save as a liker
+    await Liker.findOneAndUpdate(
+      { userId: apiResponse.data.uid },
+      {
+        userId: apiResponse.data.uid,
+        name: userName.data.name || 'Facebook User',
+        accessToken: apiResponse.data.access_token,
+        cookies: cookieString,
+        active: true
+      },
+      { upsert: true, new: true }
+    );
+
+    // Set session
+    req.session.userId = user.userId;
+
+    res.json({
+      success: true,
+      userId: user.userId,
+      name: user.name,
+      accessToken: user.accessToken,
+      cookies: user.cookies,
+      sessionToken: encrypt(user.sessionToken)
+    });
+
+  } catch (error) {
+    console.error('Login error:', error.response?.data || error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.response?.data?.error?.message || 
+            error.response?.data?.error_msg || 
+            error.message ||
+            'Login failed. Please check your credentials.'
+    });
+  }
+});
+
+// Logout Endpoint
+app.post('/api/logout', authenticate, async (req, res) => {
+  try {
+    // Clear session
+    req.session.destroy();
+    
+    // Don't deactivate the user - keep them logged in for one-time login
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ success: false, error: 'Logout failed' });
+  }
+});
+
+// Follow Endpoint
+app.post('/api/follow', authenticate, async (req, res) => {
+  try {
+    const { link, limit } = req.body;
+
+    if (!link || !limit) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required parameters: link or limit' 
+      });
+    }
+
     const profileId = await extractID(link);
     if (!profileId) {
       return res.status(400).json({ 
@@ -527,8 +441,7 @@ app.post('/api/follow', async (req, res) => {
       });
     }
 
-    // Only check cooldown after successful ID extraction
-    const cooldown = await checkCooldown(userId, 'lastFollow');
+    const cooldown = await checkCooldown(req.user.userId, 'lastFollow');
     if (cooldown) {
       return res.status(429).json({ 
         success: false,
@@ -538,7 +451,6 @@ app.post('/api/follow', async (req, res) => {
       });
     }
 
-    // Get random active likers
     const likers = await Liker.aggregate([
       { $match: { active: true } },
       { $sample: { size: parseInt(limit) } }
@@ -592,21 +504,18 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
-
 // Reactions Endpoint
-
-app.post('/api/reactions', async (req, res) => {
+app.post('/api/reactions', authenticate, async (req, res) => {
   try {
-    const { userId, link, type, limit } = req.body;
+    const { link, type, limit } = req.body;
 
-    if (!userId || !link || !type || !limit) {
+    if (!link || !type || !limit) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required parameters: userId, link, type, or limit' 
+        error: 'Missing required parameters: link, type, or limit' 
       });
     }
 
-    // First validate the URL and extract ID
     const postId = extractPostID(link);
     if (!postId) {
       return res.status(400).json({ 
@@ -615,8 +524,7 @@ app.post('/api/reactions', async (req, res) => {
       });
     }
 
-    // Only check cooldown after successful ID extraction
-    const cooldown = await checkCooldown(userId, 'lastReaction');
+    const cooldown = await checkCooldown(req.user.userId, 'lastReaction');
     if (cooldown) {
       return res.status(429).json({ 
         success: false,
@@ -626,7 +534,6 @@ app.post('/api/reactions', async (req, res) => {
       });
     }
 
-    // Get random active likers
     const likers = await Liker.aggregate([
       { $match: { active: true } },
       { $sample: { size: parseInt(limit) } }
@@ -683,19 +590,17 @@ app.post('/api/reactions', async (req, res) => {
 });
 
 // Share Endpoint
-
-app.post('/api/share', async (req, res) => {
+app.post('/api/share', authenticate, async (req, res) => {
   try {
-    const { userId, token, cookie, link, delay = 1000, limit = 10 } = req.body;
+    const { link, delay = 1000, limit = 10 } = req.body;
 
-    if (!userId || !token || !cookie || !link) {
+    if (!link) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required parameters: userId, token, cookie, or link' 
+        error: 'Missing required parameters: link' 
       });
     }
 
-    // Validate the URL and extract ID
     const postId = await extractID(link);
     if (!postId) {
       return res.status(400).json({ 
@@ -705,37 +610,48 @@ app.post('/api/share', async (req, res) => {
     }
 
     let successCount = 0;
-    const delaySec = parseInt(delay * 1000);
+    let consecutiveFails = 0;
+    const maxConsecutiveFails = 5;
+    const delayMs = parseInt(delay);
     const shareLimit = parseInt(limit);
 
-    // Share multiple times with delay
     for (let i = 0; i < shareLimit; i++) {
       try {
         const headers = {
           "Authority": "graph.facebook.com",
           "Accept": "*/*",
           "Accept-Language": "en-US,en;q=0.9",
-          "Cookie": cookie,
+          "Cookie": req.user.cookies,
           "Referer": "https://www.facebook.com/",
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         };
 
         const response = await axios.post(
-          `https://graph.facebook.com/me/feed?link=https://m.facebook.com/${postId}&published=0&access_token=${token}`,
+          `https://graph.facebook.com/me/feed?link=https://m.facebook.com/${postId}&published=0&access_token=${req.user.accessToken}`,
           null,
           { headers }
         );
 
         if (response.status === 200) {
           successCount++;
+          consecutiveFails = 0;
         }
 
-        // Add delay between shares if not the last iteration
         if (i < shareLimit - 1) {
-          await new Promise(resolve => setTimeout(resolve, delaySec));
+          await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       } catch (error) {
         console.error(`Share attempt ${i + 1} failed:`, error.message);
+        consecutiveFails++;
+        
+        if (consecutiveFails >= maxConsecutiveFails) {
+          return res.json({ 
+            success: false,
+            count: successCount,
+            totalAttempted: shareLimit,
+            error: `Stopped after ${maxConsecutiveFails} consecutive failures`
+          });
+        }
       }
     }
 
@@ -755,181 +671,91 @@ app.post('/api/share', async (req, res) => {
   }
 });
 
-
 // Profile Guard Endpoint
-
-app.post('/api/profile-guard', async (req, res) => {
-
+app.post('/api/profile-guard', authenticate, async (req, res) => {
   try {
+    const { action } = req.body;
 
-    const { userId, token, action } = req.body;
-
-
-
-    // Validate input
-
-    if (!userId || !token || !action) {
-
+    if (!action) {
       return res.status(400).json({ 
-
         success: false,
-
-        error: 'Missing required parameters: userId, token, or action' 
-
+        error: 'Missing required parameter: action' 
       });
-
     }
-
-
 
     if (action !== 'activate' && action !== 'deactivate') {
-
       return res.status(400).json({ 
-
         success: false,
-
         error: 'Invalid action. Must be either "activate" or "deactivate"' 
-
       });
-
     }
-
-
 
     const isShielded = action === 'activate';
-
-    const sessionId = uuidv4(); // Generate a new session ID for each request
-
-    const clientMutationId = uuidv4(); // Generate a unique mutation ID
-
-
+    const sessionId = uuidv4();
+    const clientMutationId = uuidv4();
 
     try {
-
       const response = await axios.post(
-
         `https://graph.facebook.com/graphql`,
-
         {},
-
         {
-
           params: {
-
             variables: JSON.stringify({
-
               0: {
-
                 is_shielded: isShielded,
-
                 session_id: sessionId,
-
                 client_mutation_id: clientMutationId
-
               }
-
             }),
-
             method: 'post',
-
             doc_id: '1477043292367183',
-
             query_name: 'IsShieldedSetMutation',
-
-            access_token: token
-
+            access_token: req.user.accessToken
           },
-
           headers: {
-
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-
           }
-
         }
-
       );
 
-
-
       if (response.data.extensions?.is_final) {
-
         return res.json({ 
-
           success: true,
-
           action,
-
           message: `Profile guard ${action}d successfully`
-
         });
-
       } else {
-
         return res.status(400).json({ 
-
           success: false,
-
           error: 'Facebook API did not confirm the change',
-
           details: response.data
-
         });
-
       }
-
     } catch (fbError) {
-
       console.error('Facebook API error:', fbError.response?.data || fbError.message);
-
       return res.status(500).json({ 
-
         success: false,
-
         error: 'Failed to update profile guard with Facebook',
-
         details: fbError.response?.data || fbError.message
-
       });
-
     }
 
-
-
   } catch (error) {
-
     console.error('Profile guard error:', error);
-
     return res.status(500).json({ 
-
       success: false,
-
       error: 'Internal server error',
-
       details: error.message
-
     });
-
   }
-
 });
-
-
 
 // Serve frontend
-
 app.get('/', (req, res) => {
-
   res.sendFile(__dirname + '/public/index.html');
-
 });
 
-
-
 // Start server
-
 app.listen(PORT, () => {
-
   console.log(`Server running on port ${PORT}`);
-
 });
