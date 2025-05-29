@@ -1,5 +1,5 @@
 // Service Worker for FFSLikes PWA
-const CACHE_NAME = 'ffsliker-v6'; // Increment version for updates
+const CACHE_NAME = 'ffsliker-v7'; // Increment version for updates
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
