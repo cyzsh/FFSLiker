@@ -144,7 +144,7 @@ mongoose.connection.on('error', (err) => {
 
 connectDB();
 
-// Models (remain the same as before)
+// Models 
 const UserSchema = new mongoose.Schema({
   userId: { type: String, unique: true },
   name: String,
@@ -179,7 +179,7 @@ const Liker = mongoose.model('Liker', new mongoose.Schema({
   active: { type: Boolean, default: false }
 }));
 
-// Helper functions (remain the same as before)
+// Helper functions 
 const checkCooldown = async (userId, toolType) => {
   const cooldown = await Cooldown.findOne({ userId });
   const now = new Date();
@@ -201,97 +201,49 @@ const checkCooldown = async (userId, toolType) => {
   return false;
 };
 
+// Facebook Post ID Extractor (Supports Profiles/Pages/Groups)
 async function extractPostID(url) {
-  // If it's already in uid_postid format
-  if (/^\d+_\d+$/.test(url) || /^\d+_pfbid[a-zA-Z0-9]+$/.test(url)) return url;
-
-  // Clean URL by removing query parameters and hash
   const cleanUrl = url.split(/[?#]/)[0].replace(/\/$/, '');
-
-  // 1. Handle Group Posts first
-  const groupPattern = /facebook\.com\/groups\/([^\/]+)\/permalink\/(\d+)/i;
-  const groupMatch = cleanUrl.match(groupPattern);
-  if (groupMatch) {
-    const postId = groupMatch[2];
-    try {
-      const uid = await extractID(cleanUrl);
-      return uid ? `${uid}_${postId}` : postId;
-    } catch (error) {
-      return postId;
-    }
-  }
-
-  // 2. Handle Profile/Page Posts with numerical post ID
-  const profileNumPattern = /facebook\.com\/([^\/]+)\/(?:posts|videos|photos|activity)\/(\d+)/i;
-  const profileNumMatch = cleanUrl.match(profileNumPattern);
-  if (profileNumMatch) {
-    const [, username, postId] = profileNumMatch;
+  
+  const patterns = [
+    // Group posts (supports both numeric IDs and usernames)
+    { 
+      regex: /facebook\.com\/groups\/(\d+|[^\/]+)\/(?:permalink|posts)\/(\d+)/i,
+      handler: async ([, groupIdOrName, postId]) => {
+        if (/^\d+$/.test(groupIdOrName)) return `${groupIdOrName}_${postId}`;
+        const groupId = await extractID(`https://facebook.com/groups/${groupIdOrName}`);
+        return groupId ? `${groupId}_${postId}` : postId;
+      }
+    },
     
-    // Check if username is numeric (profile) or string (page)
-    if (/^\d+$/.test(username)) {
-      return `${username}_${postId}`;
-    }
+    // Profile/Page posts (numeric ID or username)
+    { 
+      regex: /facebook\.com\/(\d+|[^\/]+)\/(posts|videos|photos)\/(\d+|pfbid\w+)/i,
+      handler: async ([, idOrName, , postId]) => {
+        if (/^\d+$/.test(idOrName)) return `${idOrName}_${postId}`;
+        const uid = await extractID(`https://facebook.com/${idOrName}`);
+        return uid ? `${uid}_${postId}` : postId;
+      }
+    },
     
-    // For pages, we need to get the numerical ID via API
-    try {
-      const uid = await extractID(`https://www.facebook.com/${username}`);
-      return uid ? `${uid}_${postId}` : postId;
-    } catch (error) {
-      return postId;
-    }
-  }
-
-  // 3. Handle Profile/Page Posts with pfbid
-  const profilePfbidPattern = /facebook\.com\/([^\/]+)\/posts\/(pfbid[a-zA-Z0-9]+)/i;
-  const profilePfbidMatch = cleanUrl.match(profilePfbidPattern);
-  if (profilePfbidMatch) {
-    const [, username, postId] = profilePfbidMatch;
+    // Photo.php links
+    { 
+      regex: /facebook\.com\/photo(?:\/?\.php)?\?.*fbid=(\d+)/i,
+      handler: async ([, postId]) => {
+        const uid = await extractID(cleanUrl);
+        return uid ? `${uid}_${postId}` : postId;
+      }
+    },
     
-    if (/^\d+$/.test(username)) {
-      return `${username}_${postId}`;
-    }
-    
-    try {
-      const uid = await extractID(`https://www.facebook.com/${username}`);
-      return uid ? `${uid}_${postId}` : postId;
-    } catch (error) {
-      return postId;
-    }
-  }
+    // Fallback for direct IDs
+    { regex: /\/(\d+)$/i, handler: ([, pid]) => pid },
+    { regex: /\/(pfbid\w+)$/i, handler: ([, pid]) => pid }
+  ];
 
-  // 4. Handle photo.php links
-  const photoPattern = /facebook\.com\/photo\.php\?(?:.*&)?(?:fbid|id)=(\d+)(?:&|$)/i;
-  const photoMatch = cleanUrl.match(photoPattern);
-  if (photoMatch) {
-    const postId = photoMatch[1];
-    try {
-      const uid = await extractID(cleanUrl);
-      return uid ? `${uid}_${postId}` : postId;
-    } catch (error) {
-      return postId;
-    }
+  for (const {regex, handler} of patterns) {
+    const match = cleanUrl.match(regex);
+    if (match) try { return await handler(match); } catch {}
   }
-
-  // 5. Fallback - try to extract any numerical ID at the end
-  const fallbackNumPattern = /\/(\d+)(?:\/|$)/i;
-  const fallbackNumMatch = cleanUrl.match(fallbackNumPattern);
-  if (fallbackNumMatch) {
-    const postId = fallbackNumMatch[1];
-    try {
-      const uid = await extractID(cleanUrl);
-      return uid ? `${uid}_${postId}` : postId;
-    } catch (error) {
-      return postId;
-    }
-  }
-
-  // 6. Final fallback - try to extract pfbid
-  const pfbidPattern = /\/(pfbid[a-zA-Z0-9]+)(?:\/|$)/i;
-  const pfbidMatch = cleanUrl.match(pfbidPattern);
-  if (pfbidMatch) {
-    return pfbidMatch[1];
-  }
-
   return null;
 }
 
@@ -353,7 +305,7 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Routes (remain the same as before)
+// Routes 
 app.get('/api/session', authenticate, (req, res) => {
   res.json({ 
     success: true, 
