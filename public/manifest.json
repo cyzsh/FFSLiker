@@ -51,6 +51,12 @@
       "src": "icons/FFS-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "start_url": "/",
