@@ -183,7 +183,7 @@ const Liker = mongoose.model('Liker', new mongoose.Schema({
 const checkCooldown = async (userId, toolType) => {
   const cooldown = await Cooldown.findOne({ userId });
   const now = new Date();
-  const cooldownMinutes = 20;
+  const cooldownMinutes = 5;
   
   if (!cooldown) {
     await Cooldown.create({ userId, [toolType]: now });
